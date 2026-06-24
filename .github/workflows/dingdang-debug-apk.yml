@@ -25,7 +25,7 @@ jobs:
       - name: Install Android SDK and NDK
         run: |
           yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-37" "build-tools;37.0.0" "platform-tools" "ndk;29.0.14206865"
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "ndk;29.0.14206865"
           echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
 
       - name: Set app NDK version
