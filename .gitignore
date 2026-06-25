@@ -21,9 +21,14 @@ V2rayNG/app/build
 V2rayNG/build
 V2rayNG/local.properties
 
-# Ignore APK and AAR files
+# Ignore APK files
 *.apk
+
+# Ignore AAR files by default, but keep the bundled legacy libv2ray core required by v2rayNG 1.5.0
 *.aar
+!V2rayNG/app/libs/
+!V2rayNG/app/libs/*.aar
+!V2rayNG/app/libs/Readme.md
 
 # Ignore signing properties
 signing.properties
@@ -44,6 +49,9 @@ V2rayNG/app/google-services.json
 *.jar
 *.war
 *.ear
+
+# Keep possible local legacy jars under app/libs if needed later
+!V2rayNG/app/libs/*.jar
 
 # Ignore executable files
 *.exe
