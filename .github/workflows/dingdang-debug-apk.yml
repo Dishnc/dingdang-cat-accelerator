@@ -8,8 +8,8 @@ on:
       - main
 
 jobs:
-  build-debug-apk:
-    name: Build Debug APK
+  build-playstore-arm64-debug-apk:
+    name: Build Playstore arm64-v8a Debug APK
     runs-on: ubuntu-latest
 
     steps:
@@ -30,7 +30,7 @@ jobs:
 
       - name: Set app NDK version
         run: |
-          sed -i '10i\ \ ndkVersion = "29.0.14206865"' ${{ github.workspace }}/V2rayNG/app/build.gradle.kts
+          sed -i '10i\  ndkVersion = "29.0.14206865"' ${{ github.workspace }}/V2rayNG/app/build.gradle.kts
 
       - name: Restore cached libhevtun
         id: cache-libhevtun-restore
@@ -76,23 +76,21 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Build Debug APK
+      - name: Build Playstore arm64-v8a Debug APK only
         run: |
           cd ${{ github.workspace }}/V2rayNG
           echo "sdk.dir=${ANDROID_HOME}" > local.properties
           chmod 755 gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew :app:assemblePlaystoreDebug -PABI_FILTERS=arm64-v8a --stacktrace --no-daemon
 
-      - name: Locate APK files
+      - name: Locate target APK
         run: |
-          echo "Searching generated APK files..."
-          find ${{ github.workspace }}/V2rayNG -name "*.apk" -type f -print
+          echo "Target APK files:"
+          find ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/debug -name "*arm64-v8a*.apk" -type f -print
 
-      - name: Upload Debug APK
+      - name: Upload Playstore arm64-v8a Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: dingdang-debug-apk
-          path: |
-            V2rayNG/**/build/outputs/apk/**/*.apk
-            V2rayNG/**/*.apk
+          name: dingdang-playstore-arm64-v8a-debug-apk
+          path: V2rayNG/app/build/outputs/apk/playstore/debug/*arm64-v8a*.apk
           if-no-files-found: error
