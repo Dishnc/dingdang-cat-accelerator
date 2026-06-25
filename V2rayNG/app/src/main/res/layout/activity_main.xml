@@ -89,10 +89,118 @@
                         android:textSize="14sp" />
 
                     <LinearLayout
+                        android:id="@+id/card_login"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="24dp"
+                        android:background="@drawable/bg_ddcat_card"
+                        android:orientation="vertical"
+                        android:padding="18dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="邮箱登录"
+                            android:textColor="#F3FAFF"
+                            android:textSize="17sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="服务地址"
+                            android:textColor="#8FA8BE"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/et_api_base_url"
+                            android:layout_width="match_parent"
+                            android:layout_height="46dp"
+                            android:layout_marginTop="6dp"
+                            android:background="@drawable/bg_ddcat_input"
+                            android:hint="https://你的域名"
+                            android:imeOptions="actionNext"
+                            android:inputType="textUri"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:singleLine="true"
+                            android:textColor="#F3FAFF"
+                            android:textColorHint="#52708D"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:text="邮箱账号"
+                            android:textColor="#8FA8BE"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/et_login_email"
+                            android:layout_width="match_parent"
+                            android:layout_height="46dp"
+                            android:layout_marginTop="6dp"
+                            android:background="@drawable/bg_ddcat_input"
+                            android:hint="user@example.com"
+                            android:imeOptions="actionDone"
+                            android:inputType="textEmailAddress"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:singleLine="true"
+                            android:textColor="#F3FAFF"
+                            android:textColorHint="#52708D"
+                            android:textSize="14sp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/btn_login"
+                                android:layout_width="0dp"
+                                android:layout_height="48dp"
+                                android:layout_weight="1"
+                                android:background="@drawable/bg_ddcat_primary_button"
+                                android:text="登录 / 查询账号"
+                                android:textAllCaps="false"
+                                android:textColor="#FFFFFF"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <Space
+                                android:layout_width="10dp"
+                                android:layout_height="1dp" />
+
+                            <Button
+                                android:id="@+id/btn_refresh_account"
+                                android:layout_width="112dp"
+                                android:layout_height="48dp"
+                                android:background="@drawable/bg_ddcat_secondary_button"
+                                android:text="刷新"
+                                android:textAllCaps="false"
+                                android:textColor="#BDEFFF"
+                                android:textSize="14sp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/tv_api_message"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:text="请输入服务地址和邮箱，点击登录查询账号。"
+                            android:textColor="#9CB3C9"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
                         android:id="@+id/card_connection"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="28dp"
+                        android:layout_marginTop="16dp"
                         android:background="@drawable/bg_ddcat_card"
                         android:orientation="vertical"
                         android:padding="20dp">
@@ -139,7 +247,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
-                            android:text="登录后将自动获取你的专属线路。当前版本先保留底层连接能力。"
+                            android:text="登录后显示真实账号信息，自动导入线路将在下一阶段接入。"
                             android:textColor="#9CB3C9"
                             android:textSize="13sp" />
 
@@ -264,6 +372,51 @@
                                 android:textColor="#F3FAFF"
                                 android:textSize="13sp" />
                         </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="剩余流量"
+                                android:textColor="#8FA8BE"
+                                android:textSize="13sp" />
+
+                            <TextView
+                                android:id="@+id/tv_traffic_remain"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="--"
+                                android:textColor="#F3FAFF"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:text="线路信息"
+                            android:textColor="#8FA8BE"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/tv_line_info"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:background="@drawable/bg_ddcat_tag"
+                            android:paddingStart="12dp"
+                            android:paddingTop="9dp"
+                            android:paddingEnd="12dp"
+                            android:paddingBottom="9dp"
+                            android:text="登录后显示"
+                            android:textColor="#BDEFFF"
+                            android:textSize="12sp" />
                     </LinearLayout>
 
                     <LinearLayout
@@ -322,7 +475,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="24dp"
                         android:gravity="center"
-                        android:text="V1.2 壳子界面 · 自动登录和线路下发将在下一阶段接入"
+                        android:text="V1.3-B 邮箱登录 · 已接入真实 x-ui APP API"
                         android:textColor="#5F7E9B"
                         android:textSize="12sp" />
                 </LinearLayout>

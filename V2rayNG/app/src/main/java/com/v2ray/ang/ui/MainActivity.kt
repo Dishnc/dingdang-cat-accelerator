@@ -1,6 +1,7 @@
 package com.v2ray.ang.ui
 
 import android.content.Intent
+import android.content.Context
 import android.content.res.ColorStateList
 import android.net.Uri
 import android.net.VpnService
@@ -8,6 +9,7 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -41,6 +43,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
+import java.net.URLEncoder
+import java.util.concurrent.TimeUnit
 
 class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelectedListener {
     private val binding by lazy {
@@ -50,6 +57,18 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
     val mainViewModel: MainViewModel by viewModels()
     private lateinit var groupPagerAdapter: GroupPagerAdapter
     private var tabMediator: TabLayoutMediator? = null
+
+    private val appPrefs by lazy {
+        getSharedPreferences(DDCAT_PREFS, Context.MODE_PRIVATE)
+    }
+
+    private val appApiClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(12, TimeUnit.SECONDS)
+            .readTimeout(18, TimeUnit.SECONDS)
+            .writeTimeout(12, TimeUnit.SECONDS)
+            .build()
+    }
 
     private val requestVpnPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (it.resultCode == RESULT_OK) {
@@ -64,6 +83,29 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
             setupGroupTab()
         }
     }
+
+    private data class DingdangAccountInfo(
+        val apiBaseUrl: String,
+        val email: String,
+        val success: Boolean,
+        val message: String,
+        val status: String,
+        val statusText: String,
+        val expireTime: String,
+        val trafficUsedGb: Double,
+        val trafficTotalGb: Double,
+        val trafficRemainGb: Double,
+        val hostAddress: String,
+        val port: Int,
+        val protocol: String,
+        val network: String,
+        val security: String,
+        val flow: String,
+        val uuid: String,
+        val vlessUrl: String
+    )
+
+    private class AppLoginException(message: String) : Exception(message)
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,7 +128,10 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
         binding.btnRenew.setOnClickListener { toast("套餐续费入口将在下一阶段接入") }
         binding.btnOrder.setOnClickListener { toast("在线下单入口将在下一阶段接入") }
         binding.btnSupport.setOnClickListener { toast("请通过右下角客服气泡联系客服") }
+        binding.btnLogin.setOnClickListener { loginWithAppApi(showToastOnSuccess = true) }
+        binding.btnRefreshAccount.setOnClickListener { refreshSavedAccount() }
 
+        loadSavedAppAccount()
         setupGroupTab()
         hideLegacyEntrances()
         setupViewModel()
@@ -207,7 +252,7 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
 
     private fun startV2Ray() {
         if (MmkvManager.getSelectServer().isNullOrEmpty()) {
-            toast("请先登录获取专属线路，或在后续版本由系统自动下发线路")
+            toast("账号登录成功后，V1.4 将自动导入专属线路；当前版本先展示真实账号信息")
             applyRunningState(false, mainViewModel.isRunning.value == true)
             return
         }
@@ -259,8 +304,261 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
             binding.btnConnect.text = "一键加速"
             binding.tvShellStatus.text = "当前状态：未加速"
             binding.tvShellStatusDot.setBackgroundResource(R.drawable.bg_ddcat_status_dot_off)
-            binding.tvShellHint.text = "登录后将自动获取你的专属线路。当前版本先保留底层连接能力。"
-            binding.tvShellNode.text = "智能线路"
+            binding.tvShellHint.text = buildShellHintForIdle()
+            binding.tvShellNode.text = buildShellNodeText()
+        }
+    }
+
+
+    private fun loadSavedAppAccount() {
+        val savedBaseUrl = appPrefs.getString(KEY_API_BASE_URL, "") ?: ""
+        val savedEmail = appPrefs.getString(KEY_EMAIL, "") ?: ""
+        binding.etApiBaseUrl.setText(savedBaseUrl)
+        binding.etLoginEmail.setText(savedEmail)
+
+        if (savedEmail.isBlank()) {
+            applyLoggedOutAccountState()
+            return
+        }
+
+        val info = DingdangAccountInfo(
+            apiBaseUrl = savedBaseUrl,
+            email = savedEmail,
+            success = appPrefs.getBoolean(KEY_SUCCESS, false),
+            message = appPrefs.getString(KEY_MESSAGE, "") ?: "",
+            status = appPrefs.getString(KEY_STATUS, "") ?: "",
+            statusText = appPrefs.getString(KEY_STATUS_TEXT, "") ?: "",
+            expireTime = appPrefs.getString(KEY_EXPIRE_TIME, "") ?: "",
+            trafficUsedGb = java.lang.Double.longBitsToDouble(appPrefs.getLong(KEY_TRAFFIC_USED_GB, java.lang.Double.doubleToRawLongBits(-1.0))),
+            trafficTotalGb = java.lang.Double.longBitsToDouble(appPrefs.getLong(KEY_TRAFFIC_TOTAL_GB, java.lang.Double.doubleToRawLongBits(-1.0))),
+            trafficRemainGb = java.lang.Double.longBitsToDouble(appPrefs.getLong(KEY_TRAFFIC_REMAIN_GB, java.lang.Double.doubleToRawLongBits(-1.0))),
+            hostAddress = appPrefs.getString(KEY_HOST_ADDRESS, "") ?: "",
+            port = appPrefs.getInt(KEY_PORT, 0),
+            protocol = appPrefs.getString(KEY_PROTOCOL, "") ?: "",
+            network = appPrefs.getString(KEY_NETWORK, "") ?: "",
+            security = appPrefs.getString(KEY_SECURITY, "") ?: "",
+            flow = appPrefs.getString(KEY_FLOW, "") ?: "",
+            uuid = appPrefs.getString(KEY_UUID, "") ?: "",
+            vlessUrl = appPrefs.getString(KEY_VLESS_URL, "") ?: ""
+        )
+        applyAccountInfo(info, fromCache = true)
+    }
+
+    private fun applyLoggedOutAccountState() {
+        binding.tvAccountEmail.text = "未登录"
+        binding.tvPlanStatus.text = "待登录后查看"
+        binding.tvExpireTime.text = "--"
+        binding.tvTrafficUsage.text = "-- / --"
+        binding.tvTrafficRemain.text = "--"
+        binding.tvLineInfo.text = "登录后显示"
+        binding.tvApiMessage.text = "请输入服务地址和邮箱，点击登录查询账号。"
+        binding.tvShellHint.text = buildShellHintForIdle()
+        binding.tvShellNode.text = buildShellNodeText()
+    }
+
+    private fun loginWithAppApi(showToastOnSuccess: Boolean) {
+        val apiBaseUrl = normalizeApiBaseUrl(binding.etApiBaseUrl.text?.toString().orEmpty())
+        val email = binding.etLoginEmail.text?.toString()?.trim().orEmpty()
+
+        if (apiBaseUrl.isBlank()) {
+            toast("请先填写服务地址，例如：https://你的域名")
+            return
+        }
+        if (!apiBaseUrl.startsWith("http://") && !apiBaseUrl.startsWith("https://")) {
+            toast("服务地址必须以 http:// 或 https:// 开头")
+            return
+        }
+        if (email.isBlank() || !email.contains("@")) {
+            toast("请输入正确的邮箱")
+            return
+        }
+
+        setLoginLoading(true, "正在登录查询账号...")
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val info = requestAppLogin(apiBaseUrl, email)
+                saveAccountInfo(info)
+                withContext(Dispatchers.Main) {
+                    binding.etApiBaseUrl.setText(info.apiBaseUrl)
+                    binding.etLoginEmail.setText(info.email)
+                    applyAccountInfo(info, fromCache = false)
+                    setLoginLoading(false, info.message.ifBlank { "登录成功" })
+                    if (showToastOnSuccess) {
+                        toast("登录成功，账号信息已更新")
+                    }
+                }
+            } catch (e: Exception) {
+                LogUtil.e(AppConfig.TAG, "DingdangCat app login failed", e)
+                withContext(Dispatchers.Main) {
+                    setLoginLoading(false, e.message ?: "登录失败，请检查服务地址和邮箱")
+                    binding.tvApiMessage.text = e.message ?: "登录失败，请检查服务地址和邮箱"
+                    toast(e.message ?: "登录失败，请检查服务地址和邮箱")
+                }
+            }
+        }
+    }
+
+    private fun refreshSavedAccount() {
+        val apiBaseUrl = normalizeApiBaseUrl(binding.etApiBaseUrl.text?.toString().orEmpty())
+        val email = binding.etLoginEmail.text?.toString()?.trim().orEmpty()
+        if (apiBaseUrl.isBlank() || email.isBlank()) {
+            toast("请先填写服务地址和邮箱")
+            return
+        }
+        loginWithAppApi(showToastOnSuccess = true)
+    }
+
+    private fun setLoginLoading(isLoading: Boolean, message: String) {
+        binding.btnLogin.isEnabled = !isLoading
+        binding.btnRefreshAccount.isEnabled = !isLoading
+        binding.btnLogin.text = if (isLoading) "查询中..." else "登录 / 查询账号"
+        binding.tvApiMessage.text = message
+        binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+    }
+
+    private fun requestAppLogin(apiBaseUrl: String, email: String): DingdangAccountInfo {
+        val encodedEmail = URLEncoder.encode(email, "UTF-8")
+        val requestUrl = "$apiBaseUrl/api/app/login?email=$encodedEmail"
+        val request = Request.Builder()
+            .url(requestUrl)
+            .get()
+            .build()
+
+        appApiClient.newCall(request).execute().use { response ->
+            val bodyText = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throw AppLoginException("接口请求失败：HTTP ${response.code}")
+            }
+            if (bodyText.isBlank()) {
+                throw AppLoginException("接口返回为空")
+            }
+            val json = JSONObject(bodyText)
+            if (!json.optBoolean("success", false)) {
+                val message = json.optString("message").ifBlank {
+                    when (json.optString("code")) {
+                        "EMAIL_NOT_FOUND" -> "未找到该邮箱对应账号"
+                        else -> "登录失败"
+                    }
+                }
+                throw AppLoginException(message)
+            }
+
+            val data = json.optJSONObject("data") ?: json
+            return DingdangAccountInfo(
+                apiBaseUrl = apiBaseUrl,
+                email = json.optString("email", data.optString("email", email)),
+                success = true,
+                message = json.optString("message", "登录成功"),
+                status = json.optString("status", data.optString("status", "active")),
+                statusText = json.optString("status_text", data.optString("status_text", "正常")),
+                expireTime = json.optString("expire_time", data.optString("expire_time", "--")),
+                trafficUsedGb = json.optDouble("traffic_used_gb", data.optDouble("traffic_used_gb", -1.0)),
+                trafficTotalGb = json.optDouble("traffic_total_gb", data.optDouble("traffic_total_gb", -1.0)),
+                trafficRemainGb = json.optDouble("traffic_remain_gb", data.optDouble("traffic_remain_gb", -1.0)),
+                hostAddress = json.optString("host_address", data.optString("host_address", "")),
+                port = json.optInt("port", data.optInt("port", 0)),
+                protocol = json.optString("protocol", data.optString("protocol", "")),
+                network = json.optString("network", data.optString("network", "")),
+                security = json.optString("security", data.optString("security", "")),
+                flow = json.optString("flow", data.optString("flow", "")),
+                uuid = json.optString("uuid", data.optString("uuid", "")),
+                vlessUrl = json.optString("vless_url", data.optString("vless_url", ""))
+            )
+        }
+    }
+
+    private fun saveAccountInfo(info: DingdangAccountInfo) {
+        appPrefs.edit()
+            .putString(KEY_API_BASE_URL, info.apiBaseUrl)
+            .putString(KEY_EMAIL, info.email)
+            .putBoolean(KEY_SUCCESS, info.success)
+            .putString(KEY_MESSAGE, info.message)
+            .putString(KEY_STATUS, info.status)
+            .putString(KEY_STATUS_TEXT, info.statusText)
+            .putString(KEY_EXPIRE_TIME, info.expireTime)
+            .putLong(KEY_TRAFFIC_USED_GB, java.lang.Double.doubleToRawLongBits(info.trafficUsedGb))
+            .putLong(KEY_TRAFFIC_TOTAL_GB, java.lang.Double.doubleToRawLongBits(info.trafficTotalGb))
+            .putLong(KEY_TRAFFIC_REMAIN_GB, java.lang.Double.doubleToRawLongBits(info.trafficRemainGb))
+            .putString(KEY_HOST_ADDRESS, info.hostAddress)
+            .putInt(KEY_PORT, info.port)
+            .putString(KEY_PROTOCOL, info.protocol)
+            .putString(KEY_NETWORK, info.network)
+            .putString(KEY_SECURITY, info.security)
+            .putString(KEY_FLOW, info.flow)
+            .putString(KEY_UUID, info.uuid)
+            .putString(KEY_VLESS_URL, info.vlessUrl)
+            .apply()
+    }
+
+    private fun applyAccountInfo(info: DingdangAccountInfo, fromCache: Boolean) {
+        binding.tvAccountEmail.text = info.email.ifBlank { "未登录" }
+        binding.tvPlanStatus.text = info.statusText.ifBlank { info.status.ifBlank { "正常" } }
+        binding.tvExpireTime.text = info.expireTime.ifBlank { "--" }
+        binding.tvTrafficUsage.text = formatTrafficUsage(info.trafficUsedGb, info.trafficTotalGb)
+        binding.tvTrafficRemain.text = formatTrafficRemain(info.trafficRemainGb, info.trafficTotalGb)
+        binding.tvLineInfo.text = buildLineInfo(info)
+        binding.tvShellNode.text = buildShellNodeText(info)
+        binding.tvShellHint.text = "账号信息已获取。V1.4 将自动导入专属线路，V1.5 完成一键加速闭环。"
+        binding.tvApiMessage.text = if (fromCache) {
+            "已读取上次登录信息，可点击刷新账号状态。"
+        } else {
+            info.message.ifBlank { "登录成功，账号信息已更新。" }
+        }
+    }
+
+    private fun normalizeApiBaseUrl(raw: String): String {
+        return raw.trim().trimEnd('/')
+    }
+
+    private fun formatTrafficUsage(used: Double, total: Double): String {
+        return if (used >= 0 && total >= 0) {
+            String.format("%.2f GB / %.2f GB", used, total)
+        } else {
+            "-- / --"
+        }
+    }
+
+    private fun formatTrafficRemain(remain: Double, total: Double): String {
+        return if (remain >= 0 && total >= 0 && total > 0) {
+            val rate = ((total - remain) / total * 100.0).coerceIn(0.0, 100.0)
+            String.format("剩余 %.2f GB · 已用 %.2f%%", remain, rate)
+        } else if (remain >= 0) {
+            String.format("剩余 %.2f GB", remain)
+        } else {
+            "--"
+        }
+    }
+
+    private fun buildLineInfo(info: DingdangAccountInfo): String {
+        val node = if (info.hostAddress.isNotBlank() && info.port > 0) {
+            "${info.hostAddress}:${info.port}"
+        } else {
+            "--"
+        }
+        val protocol = listOf(info.protocol, info.network, info.security)
+            .filter { it.isNotBlank() }
+            .joinToString(" / ")
+            .ifBlank { "--" }
+        val flow = info.flow.ifBlank { "--" }
+        return "节点：$node\n协议：$protocol\nFlow：$flow"
+    }
+
+    private fun buildShellNodeText(info: DingdangAccountInfo? = null): String {
+        val savedHost = info?.hostAddress ?: (appPrefs.getString(KEY_HOST_ADDRESS, "") ?: "")
+        val savedPort = info?.port ?: appPrefs.getInt(KEY_PORT, 0)
+        return if (savedHost.isNotBlank() && savedPort > 0) {
+            "$savedHost:$savedPort"
+        } else {
+            "智能线路"
+        }
+    }
+
+    private fun buildShellHintForIdle(): String {
+        val savedEmail = appPrefs.getString(KEY_EMAIL, "") ?: ""
+        return if (savedEmail.isNotBlank()) {
+            "已登录账号：$savedEmail。当前版本已接入真实查询，自动导入线路将在 V1.4 接入。"
+        } else {
+            "请输入服务地址和邮箱，登录后显示真实账号、到期和流量信息。"
         }
     }
 
@@ -702,4 +1000,26 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
         tabMediator?.detach()
         super.onDestroy()
     }
+    companion object {
+        private const val DDCAT_PREFS = "dingdang_cat_app_api"
+        private const val KEY_API_BASE_URL = "api_base_url"
+        private const val KEY_EMAIL = "email"
+        private const val KEY_SUCCESS = "success"
+        private const val KEY_MESSAGE = "message"
+        private const val KEY_STATUS = "status"
+        private const val KEY_STATUS_TEXT = "status_text"
+        private const val KEY_EXPIRE_TIME = "expire_time"
+        private const val KEY_TRAFFIC_USED_GB = "traffic_used_gb"
+        private const val KEY_TRAFFIC_TOTAL_GB = "traffic_total_gb"
+        private const val KEY_TRAFFIC_REMAIN_GB = "traffic_remain_gb"
+        private const val KEY_HOST_ADDRESS = "host_address"
+        private const val KEY_PORT = "port"
+        private const val KEY_PROTOCOL = "protocol"
+        private const val KEY_NETWORK = "network"
+        private const val KEY_SECURITY = "security"
+        private const val KEY_FLOW = "flow"
+        private const val KEY_UUID = "uuid"
+        private const val KEY_VLESS_URL = "vless_url"
+    }
+
 }
