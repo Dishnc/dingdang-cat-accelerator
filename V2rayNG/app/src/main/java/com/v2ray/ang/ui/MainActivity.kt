@@ -16,6 +16,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.SearchView
 import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.navigation.NavigationView
@@ -68,20 +69,26 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        setupToolbar(binding.toolbar, false, getString(R.string.title_server))
+        setupToolbar(binding.toolbar, false, getString(R.string.app_name))
+        supportActionBar?.setDisplayHomeAsUpEnabled(false)
+        binding.toolbar.navigationIcon = null
+        binding.drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
 
-        // setup viewpager and tablayout
+        // Keep the original ViewPager / tabs initialized for core compatibility,
+        // but hide every manual v2rayNG-style entrance in the V1.2 shell UI.
         groupPagerAdapter = GroupPagerAdapter(this, emptyList())
         binding.viewPager.adapter = groupPagerAdapter
-        binding.viewPager.isUserInputEnabled = true
-
-        // setup navigation drawer
-        setupNavigationDrawer()
+        binding.viewPager.isUserInputEnabled = false
 
         binding.fab.setOnClickListener { handleFabAction() }
-        binding.layoutTest.setOnClickListener { handleLayoutTestClick() }
+        binding.btnConnect.setOnClickListener { handleFabAction() }
+        binding.cardConnection.setOnClickListener { handleLayoutTestClick() }
+        binding.btnRenew.setOnClickListener { toast("套餐续费入口将在下一阶段接入") }
+        binding.btnOrder.setOnClickListener { toast("在线下单入口将在下一阶段接入") }
+        binding.btnSupport.setOnClickListener { toast("请通过右下角客服气泡联系客服") }
 
         setupGroupTab()
+        hideLegacyEntrances()
         setupViewModel()
         SubscriptionUpdater.sync()
         mainViewModel.reloadServerList()
@@ -139,8 +146,18 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
         val targetIndex = groups.indexOfFirst { it.id == mainViewModel.subscriptionId }.takeIf { it >= 0 } ?: (groups.size - 1)
         binding.viewPager.setCurrentItem(targetIndex, false)
 
-        binding.tabGroup.isVisible = groups.size > 1
+        binding.tabGroup.isVisible = false
         refreshGroupTabTitles(true)
+        hideLegacyEntrances()
+    }
+
+    private fun hideLegacyEntrances() {
+        binding.navView.isVisible = false
+        binding.tabGroup.isVisible = false
+        binding.viewPager.isVisible = false
+        binding.layoutTest.isVisible = false
+        binding.fab.isVisible = false
+        binding.drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
     }
 
     fun refreshGroupTabTitles(refreshAll: Boolean = false) {
@@ -184,13 +201,14 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
             setTestState(getString(R.string.connection_test_testing))
             mainViewModel.testCurrentServerRealPing()
         } else {
-            // service not running: keep existing no-op (could show a message if desired)
+            toast("请先启动加速通道")
         }
     }
 
     private fun startV2Ray() {
         if (MmkvManager.getSelectServer().isNullOrEmpty()) {
-            toast(R.string.title_file_chooser)
+            toast("请先登录获取专属线路，或在后续版本由系统自动下发线路")
+            applyRunningState(false, mainViewModel.isRunning.value == true)
             return
         }
         CoreServiceManager.startVService(this)
@@ -213,21 +231,36 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
     private fun applyRunningState(isLoading: Boolean, isRunning: Boolean) {
         if (isLoading) {
             binding.fab.setImageResource(R.drawable.ic_fab_check)
+            binding.btnConnect.isEnabled = false
+            binding.btnConnect.text = "连接中..."
+            binding.tvShellStatus.text = "当前状态：正在处理"
+            binding.tvShellHint.text = "正在切换加速通道，请稍候。"
             return
         }
 
+        binding.btnConnect.isEnabled = true
         if (isRunning) {
             binding.fab.setImageResource(R.drawable.ic_stop_24dp)
             binding.fab.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.color_fab_active))
             binding.fab.contentDescription = getString(R.string.action_stop_service)
             setTestState(getString(R.string.connection_connected))
             binding.layoutTest.isFocusable = true
+            binding.btnConnect.text = "一键停止"
+            binding.tvShellStatus.text = "当前状态：已加速"
+            binding.tvShellStatusDot.setBackgroundResource(R.drawable.bg_ddcat_status_dot_on)
+            binding.tvShellHint.text = "加速通道运行中，点击卡片可测试当前连接。"
+            binding.tvShellNode.text = "运行中"
         } else {
             binding.fab.setImageResource(R.drawable.ic_play_24dp)
             binding.fab.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.color_fab_inactive))
             binding.fab.contentDescription = getString(R.string.tasker_start_service)
             setTestState(getString(R.string.connection_not_connected))
             binding.layoutTest.isFocusable = false
+            binding.btnConnect.text = "一键加速"
+            binding.tvShellStatus.text = "当前状态：未加速"
+            binding.tvShellStatusDot.setBackgroundResource(R.drawable.bg_ddcat_status_dot_off)
+            binding.tvShellHint.text = "登录后将自动获取你的专属线路。当前版本先保留底层连接能力。"
+            binding.tvShellNode.text = "智能线路"
         }
     }
 
@@ -240,26 +273,8 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-
-        val searchItem = menu.findItem(R.id.search_view)
-        if (searchItem != null) {
-            val searchView = searchItem.actionView as SearchView
-            searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String?): Boolean = false
-
-                override fun onQueryTextChange(newText: String?): Boolean {
-                    mainViewModel.filterConfig(newText.orEmpty())
-                    return false
-                }
-            })
-
-            searchView.setOnCloseListener {
-                mainViewModel.filterConfig("")
-                false
-            }
-        }
-        return super.onCreateOptionsMenu(menu)
+        // V1.2 shell mode: hide all manual configuration / filter / advanced actions.
+        return false
     }
 
     override fun onOptionsItemSelected(item: MenuItem) = when (item.itemId) {
