@@ -10,41 +10,62 @@ on:
 jobs:
   build-debug-apk:
     name: Build Legacy XTLS Debug APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up JDK 11
+      - name: Set up JDK 8 for legacy Gradle
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 11
+          java-version: 8
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
+      - name: Show project structure
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-30" "build-tools;30.0.2" "platform-tools"
+          echo "Workspace: $GITHUB_WORKSPACE"
+          ls -la "$GITHUB_WORKSPACE"
+          ls -la "$GITHUB_WORKSPACE/V2rayNG"
+          ls -la "$GITHUB_WORKSPACE/V2rayNG/app/libs" || true
+          java -version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+
+      - name: Prepare Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" \
+            "platforms;android-30" \
+            "build-tools;30.0.2"
 
       - name: Build Debug APK
         run: |
-          cd ${{ github.workspace }}/V2rayNG
-          echo "sdk.dir=${ANDROID_HOME}" > local.properties
-          chmod 755 gradlew
-          ./gradlew assembleDebug --stacktrace
+          cd "$GITHUB_WORKSPACE/V2rayNG"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+          ./gradlew --no-daemon clean assembleDebug --stacktrace --info
 
       - name: Locate APK files
+        if: always()
         run: |
-          find ${{ github.workspace }}/V2rayNG -name "*.apk" -type f -print
+          echo "Searching generated APK files..."
+          find "$GITHUB_WORKSPACE/V2rayNG" -name "*.apk" -type f -print || true
 
-      - name: Prepare universal APK
+      - name: Prepare APK artifact
         run: |
-          mkdir -p ${{ github.workspace }}/artifact
-          cp ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/debug/*universal*.apk ${{ github.workspace }}/artifact/DingdangCat_LegacyXTLS_V1.0_universal.apk
+          mkdir -p "$GITHUB_WORKSPACE/artifact"
+          APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*universal*.apk" -type f | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*.apk" -type f | head -n 1)
+          fi
+          if [ -z "$APK_FILE" ]; then
+            echo "No APK file found. Build output tree:"
+            find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs" -maxdepth 6 -type f -print || true
+            exit 1
+          fi
+          echo "Using APK: $APK_FILE"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/artifact/DingdangCat_LegacyXTLS_V1.0_universal.apk"
 
       - name: Upload Legacy XTLS APK
         uses: actions/upload-artifact@v4
