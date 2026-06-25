@@ -30,9 +30,16 @@
       "enabled": true,
       "destOverride": [
         "http",
-        "tls",
-		"quic"
+        "tls"
       ]
+    }
+  },
+  {
+    "tag": "http",
+    "port": 10809,
+    "protocol": "http",
+    "settings": {
+      "userLevel": 8
     }
   }
 ],
@@ -47,7 +54,7 @@
           "users": [
             {
               "id": "a3482e88-686a-4a58-8126-99c9df64b7bf",
-              "alterId": 0,
+              "alterId": 64,
               "security": "auto",
               "level": 8
             }
@@ -74,11 +81,7 @@
   },
   {
     "protocol": "freedom",
-    "streamSettings": {
-      "sockopt": {
-        "domainStrategy": "UseIP"
-      }
-    },
+    "settings": {},
     "tag": "direct"
   },
   {
@@ -92,7 +95,7 @@
   }
   ],
   "routing": {
-      "domainStrategy": "AsIs",
+      "domainStrategy": "IPIfNonMatch",
       "rules": []
   },
   "dns": {

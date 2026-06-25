@@ -2,47 +2,51 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="?attr/selectableItemBackground"
-    android:clickable="true"
-    android:focusable="true"
     android:gravity="center_vertical"
-    android:padding="@dimen/padding_spacing_dp8">
+    android:background="?android:attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true">
 
-    <androidx.appcompat.widget.AppCompatImageView
+    <android.support.v7.widget.AppCompatImageView
         android:id="@+id/icon"
-        android:layout_width="@dimen/view_height_dp48"
-        android:layout_height="@dimen/view_height_dp48"
-        android:padding="@dimen/padding_spacing_dp8" />
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:paddingStart="14dp"
+        android:paddingLeft="14dp"
+        android:paddingEnd="10dp"
+        android:paddingRight="10dp" />
 
     <LinearLayout
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="46dp"
         android:layout_weight="1.0"
         android:gravity="center"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:paddingStart="@dimen/layout_margin_right_height"
+        android:paddingEnd="@dimen/layout_margin_right_height">
 
-        <androidx.appcompat.widget.AppCompatTextView
+        <android.support.v7.widget.AppCompatTextView
             android:id="@+id/name"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxLines="1"
-            android:textAppearance="@style/TextAppearance.AppCompat.Subhead" />
+            android:layout_height="wrap_content" />
 
-        <androidx.appcompat.widget.AppCompatTextView
+        <android.support.v7.widget.AppCompatTextView
             android:id="@+id/package_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:maxLines="3"
-            android:paddingTop="@dimen/padding_spacing_dp8"
             android:textAppearance="@style/TextAppearance.AppCompat.Small" />
     </LinearLayout>
 
-    <androidx.appcompat.widget.AppCompatCheckBox
+
+    <android.support.v7.widget.AppCompatCheckBox
         android:id="@+id/check_box"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:clickable="false"
         android:focusable="false"
-        android:padding="@dimen/padding_spacing_dp8" />
+        android:paddingStart="2dp"
+        android:paddingLeft="2dp"
+        android:paddingEnd="6dp"
+        android:paddingRight="6dp" />
 
 </LinearLayout>

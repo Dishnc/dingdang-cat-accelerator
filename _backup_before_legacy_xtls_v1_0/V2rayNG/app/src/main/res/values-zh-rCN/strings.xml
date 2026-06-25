@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_widget_name">开关</string>
+    <string name="app_tile_name">开关</string>
+    <string name="app_tile_first_use">首次使用请先添加线路</string>
+
+    <string name="navigation_drawer_open">打开菜单</string>
+    <string name="navigation_drawer_close">关闭菜单</string>
+
+    <string name="migration_success">数据迁移成功</string>
+    <string name="migration_fail">数据迁移失败</string>
+
+    <string name="action_stop_service">停止加速</string>
+    <string name="pull_down_to_refresh">下拉刷新</string>
+
+    <!-- 通知 -->
+    <string name="notification_action_stop_v2ray">停止</string>
+    <string name="toast_permission_denied">无法获取权限</string>
+    <string name="toast_permission_denied_notification">无法获取通知权限</string>
+    <string name="notification_action_more">查看更多</string>
+    <string name="toast_services_start">开始加速</string>
+    <string name="toast_services_stop">停止加速</string>
+    <string name="toast_services_success">加速已启动</string>
+    <string name="toast_services_failure">加速启动失败</string>
+
+    <!-- 线路管理 -->
+    <string name="title_server">线路</string>
+    <string name="menu_item_add_config">添加线路</string>
+    <string name="menu_item_save_config">保存线路</string>
+    <string name="menu_item_edit_config">编辑线路</string>
+    <string name="menu_item_del_config">删除线路</string>
+
+    <string name="menu_item_import_config_qrcode">扫码导入</string>
+    <string name="menu_item_import_config_clipboard">剪贴板导入</string>
+    <string name="menu_item_import_config_local">本地导入</string>
+
+    <string name="menu_item_import_config_manually_vmess">高级线路A</string>
+    <string name="menu_item_import_config_manually_vless">高级线路B</string>
+    <string name="menu_item_import_config_manually_ss">高级线路C</string>
+    <string name="menu_item_import_config_manually_socks">本地通道</string>
+
+    <string name="del_config_comfirm">确认删除？</string>
+    <string name="del_invalid_config_comfirm">请先测试线路后再删除</string>
+
+    <string name="server_lab_remarks">备注</string>
+    <string name="server_lab_address">地址</string>
+    <string name="server_lab_port">端口</string>
+
+    <string name="server_lab_id">用户ID</string>
+    <string name="server_lab_security">加密方式</string>
+
+    <string name="server_lab_network">网络类型</string>
+    <string name="server_lab_more_function">传输方式</string>
+
+    <string name="server_lab_stream_security">传输加密</string>
+    <string name="server_lab_stream_fingerprint">指纹</string>
+    <string name="server_lab_stream_alpn">ALPN</string>
+
+    <string name="server_lab_allow_insecure">跳过证书验证</string>
+    <string name="server_lab_sni">SNI</string>
+
+    <string name="toast_success">成功</string>
+    <string name="toast_failure">失败</string>
+
+    <string name="toast_none_data">暂无数据</string>
+    <string name="toast_incorrect_protocol">协议错误</string>
+    <string name="toast_decoding_failed">解析失败</string>
+
+    <string name="title_file_chooser">选择文件</string>
+
+    <string name="toast_invalid_url">链接无效</string>
+
+    <!-- ⚠️ 修复错误行 -->
+    <string name="title_webdav_url">WebDAV服务器地址</string>
+
+    <!-- 设置 -->
+    <string name="title_settings">设置</string>
+    <string name="title_core_settings">核心设置</string>
+    <string name="title_advanced">高级设置</string>
+
+    <!-- 系统通道（替代 VPN） -->
+    <string name="title_vpn_settings">系统通道设置</string>
+    <string name="title_pref_vpn_dns">系统DNS</string>
+    <string name="title_pref_vpn_mtu">系统MTU</string>
+    <string name="title_pref_vpn_bypass_lan">是否绕过局域网</string>
+
+    <string-array name="mode_entries">
+        <item>系统模式</item>
+        <item>仅加速</item>
+    </string-array>
+
+    <!-- UI -->
+    <string name="title_ui_settings">界面设置</string>
+    <string name="title_language">语言</string>
+
+    <!-- 代理相关统一 -->
+    <string name="title_pref_per_app_proxy">分应用加速</string>
+    <string name="per_app_proxy_settings">应用控制</string>
+
+    <!-- About -->
+    <string name="title_about">关于叮当猫加速器</string>
+    <string name="title_source_code">版本信息</string>
+
+</resources>

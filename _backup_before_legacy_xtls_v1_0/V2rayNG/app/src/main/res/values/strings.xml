@@ -1,0 +1,476 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">叮当猫加速器</string>
+    <string name="app_widget_name">一键加速</string>
+    <string name="app_tile_name">一键加速</string>
+    <string name="app_tile_first_use">首次使用请先打开应用完成登录</string>
+    <string name="navigation_drawer_open">打开菜单</string>
+    <string name="navigation_drawer_close">关闭菜单</string>
+    <string name="migration_success">数据迁移成功</string>
+    <string name="action_stop_service">停止加速</string>
+    <string name="migration_fail">数据迁移失败</string>
+    <string name="pull_down_to_refresh">下拉刷新</string>
+
+    <!-- Notifications -->
+    <string name="notification_action_stop_v2ray">停止</string>
+    <string name="toast_permission_denied">无法获取权限</string>
+    <string name="toast_permission_denied_notification">无法获取通知权限</string>
+    <string name="notification_action_more">点击查看更多</string>
+    <string name="toast_services_start">开始加速</string>
+    <string name="toast_services_stop">停止加速</string>
+    <string name="toast_services_success">加速已开启</string>
+    <string name="toast_services_failure">加速开启失败</string>
+
+    <!--ServerActivity-->
+    <string name="title_server">线路</string>
+    <string name="menu_item_add_config">添加线路</string>
+    <string name="menu_item_save_config">保存线路</string>
+    <string name="menu_item_edit_config">编辑线路</string>
+    <string name="menu_item_del_config">删除线路</string>
+    <string name="menu_item_import_config_qrcode">扫码导入</string>
+    <string name="menu_item_import_config_clipboard">从剪贴板导入</string>
+    <string name="menu_item_import_config_local">从本地导入</string>
+    <string name="menu_item_import_config_policy_group">添加线路组</string>
+    <string name="menu_item_import_config_proxy_chain">添加链式线路</string>
+    <string name="menu_item_import_config_manually_vmess">添加高级线路 A</string>
+    <string name="menu_item_import_config_manually_vless">添加高级线路 B</string>
+    <string name="menu_item_import_config_manually_ss">添加高级线路 C</string>
+    <string name="menu_item_import_config_manually_socks">添加本地通道</string>
+    <string name="menu_item_import_config_manually_http">添加网页通道</string>
+    <string name="menu_item_import_config_manually_trojan">添加高级线路 D</string>
+    <string name="menu_item_import_config_manually_wireguard">添加高级线路 E</string>
+    <string name="menu_item_import_config_manually_hysteria2">添加高级线路 F</string>
+    <string name="del_config_comfirm">确认删除？</string>
+    <string name="del_invalid_config_comfirm">请先检测后再删除，确认删除？</string>
+    <string name="server_lab_remarks">备注</string>
+    <string name="server_lab_address">地址</string>
+    <string name="server_lab_port">端口</string>
+    <string name="server_lab_id">用户ID</string>
+    <string name="server_lab_alterid">扩展ID</string>
+    <string name="server_lab_security">安全方式</string>
+    <string name="server_lab_network">网络</string>
+    <string name="server_lab_more_function">传输设置</string>
+    <string name="server_lab_head_type">头部类型</string>
+    <string name="server_lab_mode_type">传输模式</string>
+    <string name="server_lab_request_host">主机名</string>
+    <string name="server_lab_request_host_http">网页主机</string>
+    <string name="server_lab_request_host_ws">通道主机</string>
+    <string name="server_lab_request_host_httpupgrade">升级主机</string>
+    <string name="server_lab_request_host_xhttp">增强主机</string>
+    <string name="server_lab_request_host_h2">H2 主机</string>
+    <string name="server_lab_request_host_quic">QUIC 安全</string>
+    <string name="server_lab_request_host_grpc">传输 Authority</string>
+    <string name="server_lab_path">路径</string>
+    <string name="server_lab_path_ws">通道路径</string>
+    <string name="server_lab_path_httpupgrade">升级路径</string>
+    <string name="server_lab_path_xhttp">增强路径</string>
+    <string name="server_lab_path_h2">H2 路径</string>
+    <string name="server_lab_path_quic">QUIC 密钥</string>
+    <string name="server_lab_path_kcp">KCP Seed</string>
+    <string name="server_lab_path_grpc">传输服务名</string>
+    <string name="server_lab_stream_security">加密传输</string>
+    <string name="server_lab_stream_fingerprint">指纹</string>
+    <string name="server_lab_stream_alpn">ALPN</string>
+    <string name="server_lab_allow_insecure">允许不安全连接</string>
+    <string name="server_lab_sni">SNI</string>
+    <string name="server_lab_address3">地址</string>
+    <string name="server_lab_port3">端口</string>
+    <string name="server_lab_id3">密码</string>
+    <string name="server_lab_security3">安全方式</string>
+    <string name="server_lab_id4">密码（可选）</string>
+    <string name="server_lab_security4">用户（可选）</string>
+    <string name="server_lab_encryption">加密</string>
+    <string name="server_lab_flow">流控</string>
+    <string name="server_lab_public_key">公钥</string>
+    <string name="server_lab_preshared_key">预共享密钥（可选）</string>
+    <string name="server_lab_short_id">短ID</string>
+    <string name="server_lab_spider_x">伪装路径</string>
+    <string name="server_lab_mldsa65_verify">校验参数</string>
+    <string name="server_lab_secret_key">私钥</string>
+    <string name="server_lab_reserved">保留字段（可选，逗号分隔）</string>
+    <string name="server_lab_local_address">本地地址（可选 IPv4/IPv6，逗号分隔）</string>
+    <string name="server_lab_local_mtu">MTU（可选，默认 1420）</string>
+    <string name="server_lab_kcp_mtu">KCP MTU（可选，核心默认 1350）</string>
+    <string name="server_lab_kcp_tti">KCP TTI（可选，核心默认 50）</string>
+    <string name="toast_success">成功</string>
+    <string name="toast_failure">失败</string>
+    <string name="toast_none_data">暂无数据</string>
+    <string name="toast_incorrect_protocol">线路格式不正确</string>
+    <string name="toast_decoding_failed">解析失败</string>
+    <string name="title_file_chooser">选择线路文件</string>
+    <string name="toast_require_file_manager">请安装文件管理器</string>
+    <string name="server_customize_config">自定义线路</string>
+    <string name="toast_config_file_invalid">线路文件无效</string>
+    <string name="server_lab_content">内容</string>
+    <string name="toast_none_data_clipboard">剪贴板暂无数据</string>
+    <string name="toast_invalid_url">链接无效</string>
+    <string name="toast_insecure_url_protocol">请不要使用不安全的 HTTP 订阅地址</string>
+    <string name="server_lab_need_inbound">请确保入站端口与设置保持一致</string>
+    <string name="toast_malformed_josn">线路内容格式错误</string>
+    <string name="server_lab_request_host6">Host/SNI（可选）</string>
+    <string name="toast_action_not_allowed">当前操作不允许</string>
+    <string name="server_obfs_password">混淆密码</string>
+    <string name="server_lab_port_hop">端口跳跃（会覆盖端口）</string>
+    <string name="server_lab_port_hop_interval">端口跳跃间隔</string>
+    <string name="server_lab_bandwidth_down">下行带宽（支持单位 k/m/g/t）</string>
+    <string name="server_lab_bandwidth_up">上行带宽（支持单位 k/m/g/t）</string>
+    <string name="server_lab_xhttp_mode">增强模式</string>
+    <string name="server_lab_xhttp_extra">增强扩展 JSON，格式：{ XHTTPObject }</string>
+    <string name="server_lab_final_mask">最终掩码 JSON，格式：{ FinalMaskObject }</string>
+    <string name="server_lab_ech_config_list">ECH 配置列表</string>
+    <string name="server_lab_verify_peer_cert_by_name">按名称验证证书</string>
+    <string name="server_lab_pinned_ca256">证书指纹（SHA-256）</string>
+    <string name="server_lab_browser_dialer">启用浏览器拨号</string>
+    <string name="server_lab_browser_dialer_tip">仅支持部分传输方式，相关加密设置可能被忽略或冲突</string>
+    <string name="toast_allow_insecure_deprecated">警告：跳过证书验证功能将在 2026 年 8 月后停用，请尽快使用证书指纹。</string>
+    <string name="pinned_ca256_action_fetch">获取并填充证书指纹</string>
+    <string name="toast_fetch_cert_sha256_success">证书指纹获取成功</string>
+    <string name="toast_fetch_cert_sha256_failed">证书指纹获取失败</string>
+
+    <!-- UserAssetActivity -->
+    <string name="toast_asset_copy_failed">文件复制失败，请使用文件管理器</string>
+    <string name="menu_item_add_asset">添加资源</string>
+    <string name="menu_item_add_file">添加文件</string>
+    <string name="menu_item_add_url">添加链接</string>
+    <string name="menu_item_scan_qrcode">扫码</string>
+    <string name="title_url">链接</string>
+    <string name="menu_item_download_file">下载文件</string>
+    <string name="title_user_asset_add_url">添加资源链接</string>
+    <string name="msg_file_not_found">文件未找到</string>
+    <string name="msg_remark_is_duplicate">备注已存在</string>
+    <string name="asset_geo_files_sources">规则资源来源（可选）</string>
+
+    <!-- PerAppProxyActivity -->
+    <string name="msg_dialog_progress">加载中</string>
+    <string name="menu_item_search">搜索</string>
+    <string name="menu_item_select_all">全选</string>
+    <string name="menu_item_invert_selection">反选</string>
+    <string name="msg_enter_keywords">输入关键词</string>
+    <string name="switch_bypass_apps_mode">绕过模式</string>
+    <string name="menu_item_select_proxy_app">自动选择应用</string>
+    <string name="msg_downloading_content">下载中</string>
+    <string name="menu_item_export_proxy_app">导出到剪贴板</string>
+    <string name="menu_item_import_proxy_app">从剪贴板导入</string>
+    <string name="per_app_proxy_settings">分应用设置</string>
+    <string name="per_app_proxy_settings_enable">启用分应用</string>
+    <string name="app_picker_unknown_app">未知应用（无法识别 UID）</string>
+
+    <!-- Preferences -->
+    <string name="title_settings">设置</string>
+    <string name="title_advanced">高级设置</string>
+    <string name="title_core_settings">核心设置</string>
+    <string name="title_vpn_settings">系统通道设置</string>
+    <string name="title_pref_per_app_proxy">分应用加速</string>
+    <string name="summary_pref_per_app_proxy">常规模式：勾选应用使用加速，未勾选应用直连；\n绕过模式：勾选应用直连，未勾选应用使用加速。</string>
+    <string name="title_pref_is_booted">开机自动连接</string>
+    <string name="summary_pref_is_booted">设备启动后自动连接已选线路，部分设备可能无法成功</string>
+
+    <string name="title_pref_auto_remove_invalid_after_test">检测后自动删除无效线路</string>
+    <string name="summary_pref_auto_remove_invalid_after_test">检测结果可能不完全准确，删除后无法恢复。</string>
+    <string name="title_pref_auto_sort_after_test">检测后自动排序</string>
+    <string name="summary_pref_auto_sort_after_test">检测结果可能不完全准确。</string>
+
+    <string name="title_mux_settings">多路复用设置</string>
+    <string name="title_pref_mux_enabled">启用多路复用</string>
+    <string name="summary_pref_mux_enabled">速度可能更快，但也可能影响稳定性。\n可在下方自定义 TCP、UDP、QUIC 处理方式。</string>
+    <string name="title_pref_mux_concurency">TCP 连接数（范围 -1 到 1024）</string>
+    <string name="title_pref_mux_xudp_concurency">XUDP 连接数（范围 -1 到 1024）</string>
+    <string name="title_pref_mux_xudp_quic">多路通道中的 QUIC 处理方式</string>
+    <string-array name="mux_xudp_quic_entries">
+        <item>拒绝</item>
+        <item>允许</item>
+        <item>跳过</item>
+    </string-array>
+
+    <string name="title_pref_speed_enabled">启用速度显示</string>
+    <string name="summary_pref_speed_enabled">在通知栏显示当前速度，通知图标会根据使用情况变化。</string>
+
+    <string name="title_pref_sniffing_enabled">启用智能识别</string>
+    <string name="summary_pref_sniffing_enabled">尝试从数据包中识别域名（默认开启）</string>
+    <string name="title_pref_route_only_enabled">启用仅路由模式</string>
+    <string name="summary_pref_route_only_enabled">仅使用识别到的域名进行规则匹配，保留原始目标地址。</string>
+
+    <string name="title_pref_local_dns_enabled">启用本地 DNS</string>
+    <string name="summary_pref_local_dns_enabled">由核心 DNS 模块处理 DNS（如需规则分流建议开启）</string>
+
+    <string name="title_pref_fake_dns_enabled">启用虚拟 DNS</string>
+    <string name="summary_pref_fake_dns_enabled">本地 DNS 返回虚拟 IP 地址，速度较快，但部分应用可能不兼容</string>
+
+    <string name="title_pref_ipv6_enabled">启用 IPv6</string>
+    <string name="summary_pref_ipv6_enabled">为系统通道添加 IPv6 地址和路由</string>
+
+    <string name="title_pref_prefer_ipv6">优先 IPv6</string>
+    <string name="summary_pref_prefer_ipv6">解析域名时优先使用 IPv6 地址</string>
+
+    <string name="title_pref_remote_dns">远程 DNS（udp/tcp/https/quic，可选）</string>
+    <string name="summary_pref_remote_dns">DNS</string>
+
+    <string name="title_pref_vpn_dns">系统通道 DNS（仅 IPv4/v6）</string>
+    <string name="title_pref_vpn_bypass_lan">系统通道是否绕过局域网</string>
+
+    <string name="title_pref_vpn_interface_address">系统通道接口地址</string>
+
+    <string name="title_pref_vpn_mtu">系统通道 MTU（默认 1500）</string>
+
+    <string name="title_pref_domestic_dns">国内 DNS（可选）</string>
+    <string name="summary_pref_domestic_dns">DNS</string>
+
+    <string name="title_pref_dns_hosts">DNS hosts（格式：domain:address,…）</string>
+    <string name="summary_pref_dns_hosts">domain:address,…</string>
+
+    <string name="title_pref_delay_test_url">真实延迟检测链接</string>
+    <string name="summary_pref_delay_test_url">链接</string>
+    <string name="title_pref_real_ping_concurrency">真实延迟检测并发数</string>
+
+    <string name="title_pref_ip_api_url">当前连接信息检测链接</string>
+    <string name="summary_pref_ip_api_url">链接</string>
+
+    <string name="title_pref_proxy_sharing_enabled">允许局域网设备连接</string>
+    <string name="summary_pref_proxy_sharing_enabled">其他设备可通过本机 IP 使用本地通道。仅建议在可信网络中开启，避免未授权连接。</string>
+    <string name="toast_warning_pref_proxysharing_short">已允许局域网设备连接，请确认当前网络可信</string>
+
+    <string name="title_pref_socks_port">本地通道端口</string>
+    <string name="title_pref_enable_local_proxy">启用本地通道</string>
+    <string name="summary_pref_enable_local_proxy">关闭后，订阅更新等操作将无法通过本地通道完成</string>
+    <string name="title_pref_socks_enable_udp">本地 UDP 通道</string>
+    <string name="summary_pref_socks_enable_udp">UDP 模式下认证安全性有限。</string>
+    <string name="summary_pref_socks_port">本地通道端口</string>
+    <string name="title_pref_dynamic_socks_port">启用动态本地通道端口</string>
+    <string name="summary_pref_dynamic_socks_port">每次创建入站时随机生成本地通道端口</string>
+    <string name="title_pref_socks_username">本地通道用户名（可选）</string>
+    <string name="summary_pref_socks_username">用户名</string>
+    <string name="title_pref_socks_password">本地通道密码（可选）</string>
+    <string name="summary_pref_socks_password">密码</string>
+
+    <string name="title_pref_local_dns_port">本地 DNS 端口</string>
+    <string name="summary_pref_local_dns_port">本地 DNS 端口</string>
+
+    <string name="title_pref_confirm_remove">删除线路确认</string>
+    <string name="summary_pref_confirm_remove">删除线路时是否需要二次确认</string>
+
+    <string name="title_pref_start_scan_immediate">启动时立即扫码</string>
+    <string name="summary_pref_start_scan_immediate">启动时直接打开相机扫码，否则可在工具栏选择扫码或选择图片</string>
+
+    <string name="title_pref_append_http_proxy">追加 HTTP 通道到系统模式</string>
+    <string name="summary_pref_append_http_proxy">HTTP 通道可被部分浏览器或支持的应用直接使用，无需经过虚拟网卡设备（Android 10+）</string>
+
+    <string name="title_pref_double_column_display">启用双列显示</string>
+    <string name="summary_pref_double_column_display">线路列表使用双列展示，可在屏幕上显示更多内容，重启应用后生效。</string>
+
+    <string name="title_pref_group_all_display">显示全部分组</string>
+    <string name="summary_pref_group_all_display">增加一个“全部标签”页面</string>
+
+    <!-- AboutActivity -->
+    <string name="title_pref_feedback">问题反馈</string>
+    <string name="summary_pref_feedback">反馈使用问题或优化建议</string>
+    <string name="summary_pref_tg_group">联系客服</string>
+    <string name="toast_tg_app_not_found">暂未找到客服应用</string>
+    <string name="title_privacy_policy">隐私政策</string>
+    <string name="title_qr_code">二维码</string>
+    <string name="title_about">关于</string>
+    <string name="title_source_code">版本信息</string>
+    <string name="title_oss_license">开源许可</string>
+    <string name="title_tg_channel">客服通道</string>
+
+    <string name="title_pref_promotion">推广</string>
+
+    <string name="title_pref_auto_update_subscription">自动更新订阅</string>
+    <string name="summary_pref_auto_update_subscription">按设定间隔在后台自动更新订阅。不同设备上该功能可能不稳定。</string>
+    <string name="title_pref_auto_update_interval">自动更新间隔（分钟，最小值 15）</string>
+
+    <string name="title_core_loglevel">日志等级</string>
+    <string name="title_outbound_domain_resolve_method">出站域名预解析方式</string>
+    <string name="title_mode">模式</string>
+    <string name="title_mode_help">点击查看更多帮助</string>
+    <string name="title_language">语言</string>
+    <string name="title_ui_settings">界面设置</string>
+    <string name="title_pref_ui_mode_night">界面模式设置</string>
+    <string name="title_pref_use_hev_tunnel">启用增强通道功能</string>
+    <string name="summary_pref_use_hev_tunnel">开启后将使用增强通道，否则使用核心通道。</string>
+    <string name="title_pref_hev_tunnel_loglevel">增强通道日志等级</string>
+    <string name="title_pref_hev_tunnel_rw_timeout">增强通道读写超时（秒，tcp/udp 默认 300/60）</string>
+
+    <string name="title_logcat">运行日志</string>
+    <string name="logcat_copy">复制</string>
+    <string name="logcat_clear">清空</string>
+    <string name="logcat_share">分享日志</string>
+    <string name="title_service_restart">重启加速</string>
+    <string name="title_del_all_config">删除线路</string>
+    <string name="title_del_duplicate_config">删除重复线路</string>
+    <string name="title_del_invalid_config">删除无效线路</string>
+    <string name="title_export_all">导出线路到剪贴板</string>
+    <string name="title_sub_setting">订阅分组设置</string>
+    <string name="sub_setting_remarks">备注</string>
+    <string name="sub_setting_url">订阅地址（可选）</string>
+    <string name="sub_setting_user_agent">User Agent</string>
+    <string name="sub_setting_filter">备注正则过滤</string>
+    <string name="sub_setting_enable">启用更新</string>
+    <string name="sub_auto_update">启用自动更新</string>
+    <string name="sub_allow_insecure_url">允许不安全 HTTP 地址</string>
+    <string name="sub_setting_pre_profile">上一条线路备注</string>
+    <string name="sub_setting_next_profile">下一条线路备注</string>
+    <string name="sub_setting_pre_profile_tip">线路备注存在且唯一</string>
+    <string name="toast_invalid_update_interval">更新间隔无效，最小值为 15 分钟。</string>
+    <string name="title_sub_update">更新订阅</string>
+    <string name="title_real_ping_all_server">真实延迟检测</string>
+    <string name="title_user_asset_setting">资源文件</string>
+    <string name="title_sort_by_test_results">按检测结果排序</string>
+    <string name="title_filter_config">筛选线路</string>
+    <string name="filter_config_all">全部</string>
+    <string name="title_del_duplicate_config_count">删除 %d 条重复线路</string>
+    <string name="title_del_config_count">删除 %d 条线路</string>
+    <string name="title_import_config_count">导入 %d 条线路</string>
+    <string name="title_export_config_count">导出 %d 条线路</string>
+    <string name="title_update_config_count">更新 %d 条线路</string>
+    <string name="title_update_subscription_result">已更新 %1$d 条线路（%2$d 成功，%3$d 失败，%4$d 跳过）</string>
+    <string name="title_update_subscription_no_subscription">暂无订阅</string>
+    <string name="toast_server_not_found_in_group">当前分组中未找到所选线路</string>
+    <string name="toast_fragment_not_available">无法定位当前视图</string>
+    <string name="title_locate_selected_config">定位已选线路</string>
+
+    <string name="tasker_start_service">开始加速</string>
+    <string name="tasker_setting_confirm">确认</string>
+
+    <!-- RoutingSettingActivity -->
+    <string name="routing_settings_domain_strategy">域名策略</string>
+    <string name="routing_settings_title">路由设置</string>
+    <string name="routing_settings_tips">使用英文逗号分隔，可选择域名、IP 或进程</string>
+    <string name="routing_settings_save">保存</string>
+    <string name="routing_settings_delete">清空</string>
+    <string name="routing_settings_rule_title">路由规则设置</string>
+    <string name="routing_settings_add_rule">添加规则</string>
+    <string name="routing_settings_import_predefined_rulesets">导入预设规则</string>
+    <string name="routing_settings_import_rulesets_tip">现有规则将被删除，确认继续？</string>
+    <string name="routing_settings_import_rulesets_from_clipboard">从剪贴板导入规则</string>
+    <string name="routing_settings_import_rulesets_from_qrcode">扫码导入规则</string>
+    <string name="routing_settings_export_rulesets_to_clipboard">导出规则到剪贴板</string>
+    <string name="routing_settings_locked">导入预设时保留此规则</string>
+    <string name="routing_settings_domain">域名</string>
+    <string name="routing_settings_ip">IP</string>
+    <string name="routing_settings_process">进程（包名，仅在特定系统通道模式下支持，Android 10+）</string>
+    <string name="routing_settings_port">端口</string>
+    <string name="routing_settings_protocol">协议</string>
+    <string name="routing_settings_protocol_tip">[http,tls,bittorrent]</string>
+    <string name="routing_settings_network">网络</string>
+    <string name="routing_settings_network_tip">[udp|tcp]</string>
+    <string name="routing_settings_outbound_tag_hint" translatable="false">proxy / direct / block / &lt;remarks&gt;</string>
+    <string name="routing_settings_outbound_tag">出站标签</string>
+
+    <string name="connection_test_pending">检测连接</string>
+    <string name="connection_test_testing">检测中…</string>
+    <string name="connection_test_testing_count">正在检测 %d 条线路…</string>
+    <string name="connection_test_available">成功：连接耗时 %dms</string>
+    <string name="connection_test_error">网络检测失败：%s</string>
+    <string name="connection_test_fail">网络不可用</string>
+    <string name="connection_test_error_status_code">错误码：#%d</string>
+    <string name="connection_connected">已加速，点击检测连接</string>
+    <string name="connection_not_connected">未加速</string>
+    <string name="connection_runing_task_left">正在运行的检测任务数：%s</string>
+
+    <string name="import_subscription_success">订阅导入成功</string>
+    <string name="import_subscription_failure">订阅导入失败</string>
+    <string name="title_fragment_settings">分片设置</string>
+    <string name="title_pref_fragment_packets">分片包数</string>
+    <string name="title_pref_fragment_length">分片长度（最小-最大）</string>
+    <string name="title_pref_fragment_interval">分片间隔（最小-最大）</string>
+    <string name="title_pref_fragment_enabled">启用分片</string>
+
+    <string name="update_check_for_update">检查更新</string>
+    <string name="update_already_latest_version">已是最新版本</string>
+    <string name="update_new_version_found">发现新版本：%s</string>
+    <string name="update_now">立即更新</string>
+    <string name="update_check_pre_release">检查预发布版本</string>
+    <string name="update_checking_for_update">正在检查更新…</string>
+
+    <string name="title_policy_group_type">线路组类型</string>
+    <string name="title_policy_group_subscription_id">来自订阅分组</string>
+    <string name="title_policy_group_subscription_filter">备注正则过滤</string>
+
+    <string name="server_proxy_chain_members">链式线路成员</string>
+    <string name="server_proxy_chain_pick_members">点击选择成员</string>
+    <string name="server_proxy_chain_member_unselected">选择成员</string>
+    <string name="server_proxy_chain_members_unselected">请为每一行选择成员</string>
+    <string name="server_proxy_chain_members_insufficient">成员数量不足</string>
+    <string name="server_proxy_chain_members_invalid">无效链式线路成员：%1$s</string>
+
+    <!-- BackupActivity -->
+    <string name="title_configuration_backup_restore">备份与还原</string>
+    <string name="title_configuration_backup">备份线路</string>
+    <string name="title_configuration_restore">还原线路</string>
+    <string name="title_configuration_share">分享线路</string>
+    <string name="title_webdav_config_setting">WebDAV 设置</string>
+    <string name="title_webdav_config_setting_unknown">请先配置 WebDAV。</string>
+    <string name="title_webdav_url">WebDAV 服务地址</string>
+    <string name="title_webdav_user">用户名</string>
+    <string name="title_webdav_pass">密码</string>
+    <string name="title_webdav_remote_path">远程目录（可选）</string>
+
+    <string-array name="share_method">
+        <item>二维码</item>
+        <item>导出到剪贴板</item>
+        <item>导出完整线路到剪贴板</item>
+    </string-array>
+
+    <string-array name="share_method_more">
+        <item>二维码</item>
+        <item>导出到剪贴板</item>
+        <item>导出完整线路到剪贴板</item>
+        <item>编辑</item>
+        <item>删除</item>
+    </string-array>
+
+    <string-array name="share_sub_method">
+        <item>二维码</item>
+        <item>导出到剪贴板</item>
+    </string-array>
+
+    <string-array name="mode_entries">
+        <item>系统模式</item>
+        <item>仅本地通道</item>
+    </string-array>
+
+    <string-array name="browser_dialer_mode">
+        <item>关闭</item>
+        <item>OkHttp</item>
+        <item>WebView</item>
+    </string-array>
+
+    <string-array name="ui_mode_night">
+        <item>跟随系统</item>
+        <item>浅色</item>
+        <item>深色</item>
+    </string-array>
+
+    <string-array name="preset_rulesets">
+        <item>中国白名单</item>
+        <item>中国黑名单</item>
+        <item>全局</item>
+        <item>伊朗白名单</item>
+        <item>俄罗斯白名单</item>
+    </string-array>
+
+    <string-array name="vpn_bypass_lan">
+        <item>跟随线路</item>
+        <item>绕过</item>
+        <item>不绕过</item>
+    </string-array>
+
+    <string-array name="outbound_domain_resolve_method">
+        <item>不解析</item>
+        <item>解析并添加到 DNS Hosts</item>
+        <item>解析并替换域名</item>
+    </string-array>
+
+    <string-array name="policy_group_type">
+        <item>最低延迟</item>
+        <item>最低负载</item>
+        <item>随机</item>
+        <item>轮询</item>
+    </string-array>
+
+    <string-array name="config_backup_options">
+        <item>本地</item>
+        <item>WebDAV</item>
+    </string-array>
+
+</resources>
