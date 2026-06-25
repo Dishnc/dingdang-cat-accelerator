@@ -1,4 +1,5 @@
 name: Dingdang Debug APK
+run-name: ${{ github.event.head_commit.message }}
 
 on:
   workflow_dispatch:
@@ -8,8 +9,8 @@ on:
       - main
 
 jobs:
-  build-playstore-arm64-debug-apk:
-    name: Build Playstore arm64-v8a Debug APK
+  build-playstore-universal-debug-apk:
+    name: Build Playstore Universal Debug APK
     runs-on: ubuntu-latest
 
     steps:
@@ -76,21 +77,21 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Build Playstore arm64-v8a Debug APK only
+      - name: Build Playstore Universal Debug APK only
         run: |
           cd ${{ github.workspace }}/V2rayNG
           echo "sdk.dir=${ANDROID_HOME}" > local.properties
           chmod 755 gradlew
-          ./gradlew :app:assemblePlaystoreDebug -PABI_FILTERS=arm64-v8a --stacktrace --no-daemon
+          ./gradlew :app:assemblePlaystoreDebug -PUNIVERSAL_APK_ONLY=true --stacktrace --no-daemon
 
       - name: Locate target APK
         run: |
-          echo "Target APK files:"
-          find ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/debug -name "*arm64-v8a*.apk" -type f -print
+          echo "Target universal APK files:"
+          find ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/debug -name "*universal*.apk" -type f -print
 
-      - name: Upload Playstore arm64-v8a Debug APK
+      - name: Upload Playstore Universal Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: dingdang-playstore-arm64-v8a-debug-apk
-          path: V2rayNG/app/build/outputs/apk/playstore/debug/*arm64-v8a*.apk
+          name: dingdang-playstore-universal-debug-apk
+          path: V2rayNG/app/build/outputs/apk/playstore/debug/*universal*.apk
           if-no-files-found: error

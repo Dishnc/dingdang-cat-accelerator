@@ -16,22 +16,36 @@ android {
         versionName = "2.2.5"
         multiDexEnabled = true
 
-        val abiFilterList = (properties["ABI_FILTERS"] as? String)?.split(';')
+        // DingdangCat build switch:
+        // -PUNIVERSAL_APK_ONLY=true  => build only one universal APK for faster debugging/download.
+        // -PABI_FILTERS=arm64-v8a    => build ABI-specific APK(s).
+        // no property                => keep original split APKs + universal behavior.
+        val universalApkOnly = (properties["UNIVERSAL_APK_ONLY"] as? String)?.toBoolean() == true
+        val abiFilterList = (properties["ABI_FILTERS"] as? String)
+            ?.split(';')
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+
         splits {
             abi {
-                isEnable = true
-                reset()
-                if (!abiFilterList.isNullOrEmpty()) {
-                    include(*abiFilterList.toTypedArray())
+                if (universalApkOnly) {
+                    // Disable ABI split output. Android Gradle Plugin will generate one APK containing all ABIs.
+                    isEnable = false
                 } else {
-                    include(
-                        "arm64-v8a",
-                        "armeabi-v7a",
-                        "x86_64",
-                        "x86"
-                    )
+                    isEnable = true
+                    reset()
+                    if (!abiFilterList.isNullOrEmpty()) {
+                        include(*abiFilterList.toTypedArray())
+                    } else {
+                        include(
+                            "arm64-v8a",
+                            "armeabi-v7a",
+                            "x86_64",
+                            "x86"
+                        )
+                    }
+                    isUniversalApk = abiFilterList.isNullOrEmpty()
                 }
-                isUniversalApk = abiFilterList.isNullOrEmpty()
             }
         }
 
