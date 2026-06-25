@@ -426,21 +426,33 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
 
         appApiClient.newCall(request).execute().use { response ->
             val bodyText = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                throw AppLoginException("接口请求失败：HTTP ${response.code}")
-            }
             if (bodyText.isBlank()) {
-                throw AppLoginException("接口返回为空")
+                throw AppLoginException(
+                    if (response.isSuccessful) "接口返回为空" else "接口请求失败：HTTP ${response.code}"
+                )
             }
-            val json = JSONObject(bodyText)
+
+            val json = try {
+                JSONObject(bodyText)
+            } catch (e: Exception) {
+                if (!response.isSuccessful) {
+                    throw AppLoginException("接口请求失败：HTTP ${response.code}")
+                }
+                throw AppLoginException("接口返回不是有效 JSON")
+            }
+
             if (!json.optBoolean("success", false)) {
                 val message = json.optString("message").ifBlank {
                     when (json.optString("code")) {
                         "EMAIL_NOT_FOUND" -> "未找到该邮箱对应账号"
-                        else -> "登录失败"
+                        else -> if (!response.isSuccessful) "接口请求失败：HTTP ${response.code}" else "登录失败"
                     }
                 }
                 throw AppLoginException(message)
+            }
+
+            if (!response.isSuccessful) {
+                throw AppLoginException("接口请求失败：HTTP ${response.code}")
             }
 
             val data = json.optJSONObject("data") ?: json
