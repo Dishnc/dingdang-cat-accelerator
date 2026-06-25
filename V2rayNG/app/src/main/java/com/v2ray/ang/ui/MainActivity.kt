@@ -132,6 +132,7 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
         binding.btnLogin.setOnClickListener { loginWithAppApi(showToastOnSuccess = true) }
         binding.btnRefreshAccount.setOnClickListener { refreshSavedAccount() }
 
+        ensureDingdangRoutingDefaults()
         loadSavedAppAccount()
         setupGroupTab()
         hideLegacyEntrances()
@@ -506,7 +507,8 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
             val data = json.optJSONObject("data") ?: json
             val serverName = extractServerNameFromStreamSettings(data.optString("stream_settings", json.optString("stream_settings", "")))
             val rawVlessUrl = json.optString("vless_url", data.optString("vless_url", ""))
-            val safeVlessUrl = enrichVlessUrlWithServerName(rawVlessUrl, serverName)
+            val security = json.optString("security", data.optString("security", ""))
+            val safeVlessUrl = enrichDingdangVlessUrl(rawVlessUrl, serverName, security)
             return DingdangAccountInfo(
                 apiBaseUrl = apiBaseUrl,
                 email = json.optString("email", data.optString("email", email)),
@@ -522,7 +524,7 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
                 port = json.optInt("port", data.optInt("port", 0)),
                 protocol = json.optString("protocol", data.optString("protocol", "")),
                 network = json.optString("network", data.optString("network", "")),
-                security = json.optString("security", data.optString("security", "")),
+                security = security,
                 flow = json.optString("flow", data.optString("flow", "")),
                 serverName = serverName,
                 uuid = json.optString("uuid", data.optString("uuid", "")),
@@ -606,6 +608,51 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
         val fragmentPart = if (fragmentIndex >= 0) rawVlessUrl.substring(fragmentIndex) else ""
         val separator = if (mainPart.contains("?")) "&" else "?"
         return "$mainPart${separator}sni=$encodedSni$fragmentPart"
+    }
+
+    private fun enrichDingdangVlessUrl(rawVlessUrl: String, serverName: String, security: String): String {
+        if (rawVlessUrl.isBlank()) {
+            return rawVlessUrl
+        }
+        var url = enrichVlessUrlWithServerName(rawVlessUrl, serverName)
+        val sec = security.lowercase()
+        if (sec == AppConfig.TLS || sec == AppConfig.XTLS) {
+            url = setVlessQueryParam(url, "insecure", "1")
+            url = setVlessQueryParam(url, "allowInsecure", "1")
+        }
+        return url
+    }
+
+    private fun setVlessQueryParam(rawUrl: String, key: String, value: String): String {
+        if (rawUrl.isBlank()) {
+            return rawUrl
+        }
+        val fragmentIndex = rawUrl.indexOf('#')
+        val mainPart = if (fragmentIndex >= 0) rawUrl.substring(0, fragmentIndex) else rawUrl
+        val fragmentPart = if (fragmentIndex >= 0) rawUrl.substring(fragmentIndex) else ""
+        val questionIndex = mainPart.indexOf('?')
+        val basePart = if (questionIndex >= 0) mainPart.substring(0, questionIndex) else mainPart
+        val queryPart = if (questionIndex >= 0) mainPart.substring(questionIndex + 1) else ""
+        val keptParams = queryPart.split("&")
+            .filter { it.isNotBlank() }
+            .filterNot { it.substringBefore("=").equals(key, ignoreCase = true) }
+            .toMutableList()
+        keptParams.add("$key=${URLEncoder.encode(value, "UTF-8")}")
+        return "$basePart?${keptParams.joinToString("&")}$fragmentPart"
+    }
+
+    private fun ensureDingdangRoutingDefaults() {
+        if (appPrefs.getBoolean(KEY_ROUTING_DEFAULTS_APPLIED, false)) {
+            return
+        }
+        try {
+            SettingsManager.resetRoutingRulesetsFromPresets(this, 0)
+            MmkvManager.encodeSettings(AppConfig.PREF_ROUTING_DOMAIN_STRATEGY, "IPIfNonMatch")
+            MmkvManager.encodeSettings(AppConfig.PREF_VPN_BYPASS_LAN, "1")
+            appPrefs.edit().putBoolean(KEY_ROUTING_DEFAULTS_APPLIED, true).apply()
+        } catch (e: Exception) {
+            LogUtil.e(AppConfig.TAG, "Failed to apply DingdangCat routing defaults", e)
+        }
     }
 
     private fun ensureDingdangVlessImported(vlessUrl: String, force: Boolean): Boolean {
@@ -1192,6 +1239,7 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
         private const val KEY_VLESS_URL = "vless_url"
         private const val KEY_IMPORTED_VLESS_URL = "imported_vless_url"
         private const val KEY_IMPORTED_SERVER_GUID = "imported_server_guid"
+        private const val KEY_ROUTING_DEFAULTS_APPLIED = "routing_defaults_applied"
     }
 
 }
