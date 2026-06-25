@@ -223,6 +223,7 @@ object AppConfig {
     const val DEFAULT_LEVEL = 8
     const val DEFAULT_NETWORK = "tcp"
     const val TLS = "tls"
+    const val XTLS = "xtls"
     const val REALITY = "reality"
     const val HEADER_TYPE_HTTP = "http"
 

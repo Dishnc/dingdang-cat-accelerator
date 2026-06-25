@@ -148,6 +148,7 @@ data class V2rayConfig(
             var xhttpSettings: XhttpSettingsBean? = null,
             var httpSettings: HttpSettingsBean? = null,
             var tlsSettings: TlsSettingsBean? = null,
+            var xtlsSettings: TlsSettingsBean? = null,
             var quicSettings: QuicSettingBean? = null,
             var realitySettings: TlsSettingsBean? = null,
             var grpcSettings: GrpcSettingsBean? = null,

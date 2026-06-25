@@ -70,7 +70,7 @@ open class FmtBase {
         config.finalMask = queryParam["fm"]
 
         config.security = queryParam["security"]
-        if (config.security != AppConfig.TLS && config.security != AppConfig.REALITY) {
+        if (config.security != AppConfig.TLS && config.security != AppConfig.XTLS && config.security != AppConfig.REALITY) {
             config.security = null
         }
         // Support multiple possible query keys for allowInsecure like the C# implementation
@@ -117,7 +117,7 @@ open class FmtBase {
         config.kcpMtu?.let { dicQuery["mtu"] = it.toString() }
         config.kcpTti?.let { dicQuery["tti"] = it.toString() }
         // Add two keys for compatibility: "insecure" and "allowInsecure"
-        if (config.security == AppConfig.TLS) {
+        if (config.security == AppConfig.TLS || config.security == AppConfig.XTLS) {
             val insecureFlag = if (config.insecure == true) "1" else "0"
             dicQuery["insecure"] = insecureFlag
             dicQuery["allowInsecure"] = insecureFlag

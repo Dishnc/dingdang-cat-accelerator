@@ -101,6 +101,7 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
         val network: String,
         val security: String,
         val flow: String,
+        val serverName: String,
         val uuid: String,
         val vlessUrl: String
     )
@@ -225,20 +226,13 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
     }
 
     private fun handleFabAction() {
-        applyRunningState(isLoading = true, isRunning = false)
-
         if (mainViewModel.isRunning.value == true) {
+            applyRunningState(isLoading = true, isRunning = true)
             CoreServiceManager.stopVService(this)
-        } else if (SettingsManager.isVpnMode()) {
-            val intent = VpnService.prepare(this)
-            if (intent == null) {
-                startV2Ray()
-            } else {
-                requestVpnPermission.launch(intent)
-            }
-        } else {
-            startV2Ray()
+            return
         }
+
+        prepareDingdangLineAndConnect()
     }
 
     private fun handleLayoutTestClick() {
@@ -252,11 +246,63 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
 
     private fun startV2Ray() {
         if (MmkvManager.getSelectServer().isNullOrEmpty()) {
-            toast("账号登录成功后，V1.4 将自动导入专属线路；当前版本先展示真实账号信息")
+            toast("请先登录并等待专属线路导入完成")
             applyRunningState(false, mainViewModel.isRunning.value == true)
             return
         }
         CoreServiceManager.startVService(this)
+    }
+
+    private fun prepareDingdangLineAndConnect() {
+        val blockReason = getAccountConnectBlockReason()
+        if (blockReason != null) {
+            toast(blockReason)
+            applyRunningState(false, false)
+            return
+        }
+
+        if (!MmkvManager.getSelectServer().isNullOrEmpty()) {
+            requestVpnPermissionOrStart()
+            return
+        }
+
+        val vlessUrl = appPrefs.getString(KEY_VLESS_URL, "") ?: ""
+        if (vlessUrl.isBlank()) {
+            toast("请先登录账号，获取专属线路")
+            applyRunningState(false, false)
+            return
+        }
+
+        binding.tvShellHint.text = "正在准备专属线路..."
+        applyRunningState(isLoading = true, isRunning = false)
+        lifecycleScope.launch(Dispatchers.IO) {
+            val imported = ensureDingdangVlessImported(vlessUrl, force = false)
+            withContext(Dispatchers.Main) {
+                if (imported && !MmkvManager.getSelectServer().isNullOrEmpty()) {
+                    mainViewModel.reloadServerList()
+                    refreshGroupTabTitles()
+                    binding.tvShellHint.text = "专属线路已准备，正在建立安全通道..."
+                    requestVpnPermissionOrStart()
+                } else {
+                    binding.tvShellHint.text = "专属线路导入失败，请刷新账号后重试。"
+                    toast("专属线路导入失败，请刷新账号后重试")
+                    applyRunningState(false, false)
+                }
+            }
+        }
+    }
+
+    private fun requestVpnPermissionOrStart() {
+        if (SettingsManager.isVpnMode()) {
+            val intent = VpnService.prepare(this)
+            if (intent == null) {
+                startV2Ray()
+            } else {
+                requestVpnPermission.launch(intent)
+            }
+        } else {
+            startV2Ray()
+        }
     }
 
     fun restartV2Ray() {
@@ -338,6 +384,7 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
             network = appPrefs.getString(KEY_NETWORK, "") ?: "",
             security = appPrefs.getString(KEY_SECURITY, "") ?: "",
             flow = appPrefs.getString(KEY_FLOW, "") ?: "",
+            serverName = appPrefs.getString(KEY_SERVER_NAME, "") ?: "",
             uuid = appPrefs.getString(KEY_UUID, "") ?: "",
             vlessUrl = appPrefs.getString(KEY_VLESS_URL, "") ?: ""
         )
@@ -378,13 +425,14 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
             try {
                 val info = requestAppLogin(apiBaseUrl, email)
                 saveAccountInfo(info)
+                val lineReady = ensureDingdangVlessImported(info.vlessUrl, force = true)
                 withContext(Dispatchers.Main) {
                     binding.etApiBaseUrl.setText(info.apiBaseUrl)
                     binding.etLoginEmail.setText(info.email)
                     applyAccountInfo(info, fromCache = false)
-                    setLoginLoading(false, info.message.ifBlank { "登录成功" })
+                    setLoginLoading(false, if (lineReady) "登录成功，专属线路已准备" else info.message.ifBlank { "登录成功" })
                     if (showToastOnSuccess) {
-                        toast("登录成功，账号信息已更新")
+                        toast(if (lineReady) "登录成功，专属线路已准备" else "登录成功，账号信息已更新")
                     }
                 }
             } catch (e: Exception) {
@@ -456,6 +504,9 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
             }
 
             val data = json.optJSONObject("data") ?: json
+            val serverName = extractServerNameFromStreamSettings(data.optString("stream_settings", json.optString("stream_settings", "")))
+            val rawVlessUrl = json.optString("vless_url", data.optString("vless_url", ""))
+            val safeVlessUrl = enrichVlessUrlWithServerName(rawVlessUrl, serverName)
             return DingdangAccountInfo(
                 apiBaseUrl = apiBaseUrl,
                 email = json.optString("email", data.optString("email", email)),
@@ -473,8 +524,9 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
                 network = json.optString("network", data.optString("network", "")),
                 security = json.optString("security", data.optString("security", "")),
                 flow = json.optString("flow", data.optString("flow", "")),
+                serverName = serverName,
                 uuid = json.optString("uuid", data.optString("uuid", "")),
-                vlessUrl = json.optString("vless_url", data.optString("vless_url", ""))
+                vlessUrl = safeVlessUrl
             )
         }
     }
@@ -497,6 +549,7 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
             .putString(KEY_NETWORK, info.network)
             .putString(KEY_SECURITY, info.security)
             .putString(KEY_FLOW, info.flow)
+            .putString(KEY_SERVER_NAME, info.serverName)
             .putString(KEY_UUID, info.uuid)
             .putString(KEY_VLESS_URL, info.vlessUrl)
             .apply()
@@ -510,12 +563,115 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
         binding.tvTrafficRemain.text = formatTrafficRemain(info.trafficRemainGb, info.trafficTotalGb)
         binding.tvLineInfo.text = buildLineInfo(info)
         binding.tvShellNode.text = buildShellNodeText(info)
-        binding.tvShellHint.text = "账号信息已获取。V1.4 将自动导入专属线路，V1.5 完成一键加速闭环。"
+        binding.tvShellHint.text = if (isDingdangLineReady(info.vlessUrl)) {
+            "专属线路已准备，点击一键加速即可建立安全通道。"
+        } else if (info.vlessUrl.isNotBlank()) {
+            "账号信息已获取，专属线路将在点击一键加速时自动准备。"
+        } else {
+            "账号信息已获取，但后端暂未返回线路配置。"
+        }
         binding.tvApiMessage.text = if (fromCache) {
             "已读取上次登录信息，可点击刷新账号状态。"
         } else {
             info.message.ifBlank { "登录成功，账号信息已更新。" }
         }
+    }
+
+    private fun extractServerNameFromStreamSettings(streamSettings: String): String {
+        if (streamSettings.isBlank()) {
+            return ""
+        }
+        return try {
+            val json = JSONObject(streamSettings)
+            val securityObject = json.optJSONObject("xtlsSettings")
+                ?: json.optJSONObject("tlsSettings")
+                ?: json.optJSONObject("realitySettings")
+            securityObject?.optString("serverName").orEmpty()
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    private fun enrichVlessUrlWithServerName(rawVlessUrl: String, serverName: String): String {
+        if (rawVlessUrl.isBlank() || serverName.isBlank()) {
+            return rawVlessUrl
+        }
+        val lower = rawVlessUrl.lowercase()
+        if (lower.contains("sni=") || lower.contains("servername=")) {
+            return rawVlessUrl
+        }
+        val encodedSni = URLEncoder.encode(serverName, "UTF-8")
+        val fragmentIndex = rawVlessUrl.indexOf('#')
+        val mainPart = if (fragmentIndex >= 0) rawVlessUrl.substring(0, fragmentIndex) else rawVlessUrl
+        val fragmentPart = if (fragmentIndex >= 0) rawVlessUrl.substring(fragmentIndex) else ""
+        val separator = if (mainPart.contains("?")) "&" else "?"
+        return "$mainPart${separator}sni=$encodedSni$fragmentPart"
+    }
+
+    private fun ensureDingdangVlessImported(vlessUrl: String, force: Boolean): Boolean {
+        if (vlessUrl.isBlank() || !vlessUrl.trim().startsWith("vless://", ignoreCase = true)) {
+            return false
+        }
+
+        val cachedUrl = appPrefs.getString(KEY_IMPORTED_VLESS_URL, "") ?: ""
+        val cachedGuid = appPrefs.getString(KEY_IMPORTED_SERVER_GUID, "") ?: ""
+        if (cachedUrl == vlessUrl && cachedGuid.isNotBlank() && MmkvManager.decodeServerConfig(cachedGuid) != null) {
+            MmkvManager.setSelectServer(cachedGuid)
+            return true
+        }
+
+        val targetSubId = ""
+        val beforeKeys = MmkvManager.decodeServerList(targetSubId).toSet()
+        val (count, _) = AngConfigManager.importBatchConfig(vlessUrl, targetSubId, true)
+        if (count <= 0) {
+            return false
+        }
+
+        val afterKeys = MmkvManager.decodeServerList(targetSubId)
+        val importedGuid = afterKeys.firstOrNull { it !in beforeKeys } ?: afterKeys.firstOrNull()
+        return if (!importedGuid.isNullOrBlank()) {
+            MmkvManager.setSelectServer(importedGuid)
+            appPrefs.edit()
+                .putString(KEY_IMPORTED_VLESS_URL, vlessUrl)
+                .putString(KEY_IMPORTED_SERVER_GUID, importedGuid)
+                .apply()
+            true
+        } else {
+            false
+        }
+    }
+
+    private fun isDingdangLineReady(vlessUrl: String? = null): Boolean {
+        val cachedGuid = appPrefs.getString(KEY_IMPORTED_SERVER_GUID, "") ?: ""
+        if (cachedGuid.isNotBlank() && MmkvManager.decodeServerConfig(cachedGuid) != null) {
+            return true
+        }
+        if (!MmkvManager.getSelectServer().isNullOrEmpty()) {
+            return true
+        }
+        val url = vlessUrl ?: (appPrefs.getString(KEY_VLESS_URL, "") ?: "")
+        return url.isNotBlank() && (appPrefs.getString(KEY_IMPORTED_VLESS_URL, "") ?: "") == url
+    }
+
+    private fun getAccountConnectBlockReason(): String? {
+        val email = appPrefs.getString(KEY_EMAIL, "") ?: ""
+        if (email.isBlank()) {
+            return "请先输入邮箱登录账号"
+        }
+        val status = (appPrefs.getString(KEY_STATUS, "") ?: "").lowercase()
+        val statusText = appPrefs.getString(KEY_STATUS_TEXT, "") ?: ""
+        if (status.isNotBlank() && status != "active" && status != "normal" && status != "ok") {
+            return statusText.ifBlank { "账号状态异常，请刷新账号状态" }
+        }
+        val remainGb = java.lang.Double.longBitsToDouble(appPrefs.getLong(KEY_TRAFFIC_REMAIN_GB, java.lang.Double.doubleToRawLongBits(-1.0)))
+        if (remainGb == 0.0) {
+            return "剩余流量不足，请续费后再试"
+        }
+        val vlessUrl = appPrefs.getString(KEY_VLESS_URL, "") ?: ""
+        if (vlessUrl.isBlank()) {
+            return "后端暂未返回专属线路，请刷新账号状态"
+        }
+        return null
     }
 
     private fun normalizeApiBaseUrl(raw: String): String {
@@ -552,7 +708,8 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
             .joinToString(" / ")
             .ifBlank { "--" }
         val flow = info.flow.ifBlank { "--" }
-        return "节点：$node\n协议：$protocol\nFlow：$flow"
+        val sni = info.serverName.ifBlank { "--" }
+        return "节点：$node\n协议：$protocol\nFlow：$flow\nSNI：$sni"
     }
 
     private fun buildShellNodeText(info: DingdangAccountInfo? = null): String {
@@ -568,7 +725,7 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
     private fun buildShellHintForIdle(): String {
         val savedEmail = appPrefs.getString(KEY_EMAIL, "") ?: ""
         return if (savedEmail.isNotBlank()) {
-            "已登录账号：$savedEmail。当前版本已接入真实查询，自动导入线路将在 V1.4 接入。"
+            "已登录账号：$savedEmail。专属线路已接入，点击一键加速即可启动。"
         } else {
             "请输入服务地址和邮箱，登录后显示真实账号、到期和流量信息。"
         }
@@ -1030,8 +1187,11 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
         private const val KEY_NETWORK = "network"
         private const val KEY_SECURITY = "security"
         private const val KEY_FLOW = "flow"
+        private const val KEY_SERVER_NAME = "server_name"
         private const val KEY_UUID = "uuid"
         private const val KEY_VLESS_URL = "vless_url"
+        private const val KEY_IMPORTED_VLESS_URL = "imported_vless_url"
+        private const val KEY_IMPORTED_SERVER_GUID = "imported_server_guid"
     }
 
 }

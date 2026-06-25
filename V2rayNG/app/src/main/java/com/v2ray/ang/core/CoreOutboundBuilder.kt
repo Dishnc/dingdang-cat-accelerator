@@ -576,9 +576,15 @@ object CoreOutboundBuilder {
         )
         if (streamSettings.security == AppConfig.TLS) {
             streamSettings.tlsSettings = tlsSetting
+            streamSettings.xtlsSettings = null
+            streamSettings.realitySettings = null
+        } else if (streamSettings.security == AppConfig.XTLS) {
+            streamSettings.tlsSettings = null
+            streamSettings.xtlsSettings = tlsSetting
             streamSettings.realitySettings = null
         } else if (streamSettings.security == AppConfig.REALITY) {
             streamSettings.tlsSettings = null
+            streamSettings.xtlsSettings = null
             streamSettings.realitySettings = tlsSetting
         }
 
@@ -601,6 +607,7 @@ object CoreOutboundBuilder {
                 return true
             }
             if (streamSettings.security != AppConfig.TLS
+                && streamSettings.security != AppConfig.XTLS
                 && streamSettings.security != AppConfig.REALITY
             ) {
                 return true
