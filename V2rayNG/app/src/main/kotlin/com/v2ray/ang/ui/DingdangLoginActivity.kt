@@ -74,6 +74,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         title = "DdmNG"
+        defaultDPreference.setPrefString(PREF_DDCAT_SERVICE, DEFAULT_SERVICE_BASE.trim().trimEnd('/'))
         buildUi()
         emailInput.setText(defaultDPreference.getPrefString(PREF_DDCAT_EMAIL, ""))
         startButton.isEnabled = AngConfigManager.configs.index >= 0
@@ -239,12 +240,20 @@ class DingdangLoginActivity : AppCompatActivity() {
         val p3 = LinearLayout.LayoutParams(0, -1, 1f); p3.leftMargin = dp(10); actions.addView(support, p3)
 
         statusText = TextView(this)
-        statusText.text = "输入邮箱后即可自动查询账号并准备专属线路。"
+        statusText.text = "输入邮箱后即可自动查询账号并准备专属线路。服务地址由系统自动处理，无需填写。"
         statusText.setTextColor(Color.rgb(126, 151, 184))
         statusText.textSize = 12f
         statusText.gravity = Gravity.CENTER
         statusText.setPadding(0, dp(16), 0, dp(8))
         box.addView(statusText, LinearLayout.LayoutParams(-1, -2))
+
+        val serviceDomainText = TextView(this)
+        serviceDomainText.text = "服务域名：" + DEFAULT_SERVICE_BASE.trim().trimEnd('/')
+        serviceDomainText.setTextColor(Color.rgb(98, 122, 154))
+        serviceDomainText.textSize = 11f
+        serviceDomainText.gravity = Gravity.CENTER
+        serviceDomainText.setPadding(0, dp(4), 0, dp(14))
+        box.addView(serviceDomainText, LinearLayout.LayoutParams(-1, -2))
 
         setContentView(root)
     }
@@ -252,11 +261,6 @@ class DingdangLoginActivity : AppCompatActivity() {
     private fun doLogin() {
         val base = resolveServiceBase()
         val email = emailInput.text.toString().trim()
-        if (base.isEmpty()) {
-            status("后端服务地址未配置，请先在补丁脚本里写入正式服务域名。")
-            toast("后端服务地址未配置")
-            return
-        }
         if (email.isEmpty()) {
             toast("请输入邮箱账号")
             return
@@ -506,12 +510,10 @@ class DingdangLoginActivity : AppCompatActivity() {
         return GsonBuilder().setPrettyPrinting().create().toJson(root)
     }
 
-        private fun resolveServiceBase(): String {
-        val configured = DEFAULT_SERVICE_BASE.trim().trimEnd('/')
-        if (configured.isNotEmpty()) {
-            return configured
-        }
-        return defaultDPreference.getPrefString(PREF_DDCAT_SERVICE, "").trim().trimEnd('/')
+    private fun resolveServiceBase(): String {
+        val base = DEFAULT_SERVICE_BASE.trim().trimEnd('/')
+        defaultDPreference.setPrefString(PREF_DDCAT_SERVICE, base)
+        return base
     }
 
     private fun httpGet(url: String): String {
