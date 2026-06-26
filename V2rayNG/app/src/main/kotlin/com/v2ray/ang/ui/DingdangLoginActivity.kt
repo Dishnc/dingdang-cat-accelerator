@@ -17,6 +17,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.os.Message
 import android.provider.Settings
 import android.support.v4.content.FileProvider
 import android.support.v7.app.AppCompatActivity
@@ -30,6 +31,8 @@ import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
 import android.view.animation.LinearInterpolator
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.*
@@ -1021,10 +1024,11 @@ class DingdangLoginActivity : AppCompatActivity() {
     }
 
     private fun openInAppSupportChat() {
-        try {
-            hideKeyboard()
-            status("联系客服：正在打开在线客服聊天窗口。")
+        hideKeyboard()
+        status("联系客服：正在打开 APP 内在线客服聊天窗口。")
 
+        try {
+            val supportUrl = buildAppSupportUrl()
             val dialog = android.app.Dialog(this)
             dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
 
@@ -1056,40 +1060,61 @@ class DingdangLoginActivity : AppCompatActivity() {
             head.addView(close, LinearLayout.LayoutParams(dp(72), dp(38)))
 
             val progress = ProgressBar(this)
-            val progressLp = LinearLayout.LayoutParams(-1, dp(3))
-            wrap.addView(progress, progressLp)
+            wrap.addView(progress, LinearLayout.LayoutParams(-1, dp(3)))
 
             val webView = WebView(this)
             webView.setBackgroundColor(Color.rgb(6, 20, 47))
-            webView.settings.javaScriptEnabled = true
-            webView.settings.domStorageEnabled = true
-            webView.settings.databaseEnabled = true
-            webView.settings.loadWithOverviewMode = true
-            webView.settings.useWideViewPort = true
-            webView.settings.setSupportZoom(false)
+            webView.isFocusable = true
+            webView.isFocusableInTouchMode = true
+
+            val settings = webView.settings
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.databaseEnabled = true
+            settings.loadWithOverviewMode = true
+            settings.useWideViewPort = true
+            settings.setSupportZoom(false)
+            settings.javaScriptCanOpenWindowsAutomatically = true
+            settings.setSupportMultipleWindows(true)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                try { settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW } catch (ignored: Throwable) {}
+            }
             try {
-                webView.settings.userAgentString = webView.settings.userAgentString + " DdmNGApp/" + BuildConfig.VERSION_NAME
-            } catch (ignored: Throwable) {
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && BuildConfig.DEBUG) {
-                try { WebView.setWebContentsDebuggingEnabled(true) } catch (ignored: Throwable) {}
-            }
+                settings.userAgentString = settings.userAgentString + " DdmNGApp/" + BuildConfig.VERSION_NAME + " InAppSupportWebView"
+            } catch (ignored: Throwable) {}
+            try {
+                val cm = CookieManager.getInstance()
+                cm.setAcceptCookie(true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) cm.setAcceptThirdPartyCookies(webView, true)
+            } catch (ignored: Throwable) {}
 
             webView.webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                     super.onProgressChanged(view, newProgress)
                     progress.visibility = if (newProgress >= 95) View.GONE else View.VISIBLE
                 }
+
+                override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
+                    // 部分客服系统会通过 target=_blank / window.open 打开聊天窗口。
+                    // 这里强制把新窗口绑定回当前 APP 内 WebView，避免跳出到系统浏览器。
+                    return try {
+                        val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
+                        transport.webView = webView
+                        resultMsg.sendToTarget()
+                        true
+                    } catch (ignored: Throwable) {
+                        false
+                    }
+                }
             }
+
             webView.webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                    val target = url ?: return false
-                    return if (target.startsWith(DEFAULT_SERVICE_BASE.trim().trimEnd('/'))) {
-                        false
-                    } else {
-                        try { Utils.openUri(this@DingdangLoginActivity, target) } catch (ignored: Throwable) {}
-                        true
-                    }
+                    return handleSupportWebViewNavigation(view, url)
+                }
+
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    return handleSupportWebViewNavigation(view, request?.url?.toString())
                 }
             }
 
@@ -1099,20 +1124,46 @@ class DingdangLoginActivity : AppCompatActivity() {
                 try {
                     webView.stopLoading()
                     webView.loadUrl("about:blank")
+                    webView.removeAllViews()
                     webView.destroy()
-                } catch (ignored: Throwable) {
-                }
+                } catch (ignored: Throwable) {}
             }
 
             dialog.setContentView(wrap)
             dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             dialog.show()
             dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.96f).toInt(), (resources.displayMetrics.heightPixels * 0.90f).toInt())
-            webView.loadUrl(buildAppSupportUrl())
+            webView.loadUrl(supportUrl)
         } catch (e: Throwable) {
-            toast("客服窗口打开失败，正在尝试打开网页客服")
-            openUrl("联系客服", buildAppSupportUrl())
+            // 不再回退到外部浏览器，避免用户误以为仍然是网页跳转。
+            toast("客服窗口打开失败，请检查系统 WebView 后重试")
+            status("联系客服：APP 内客服窗口打开失败。")
         }
+    }
+
+    private fun handleSupportWebViewNavigation(view: WebView?, rawUrl: String?): Boolean {
+        val target = rawUrl?.trim() ?: return false
+        if (target.isBlank()) return false
+        val lower = target.toLowerCase(Locale.US)
+
+        // 电话、邮件、短信、intent 这类系统协议仍交给系统处理；普通 http/https 永远留在 APP 内 WebView。
+        if (lower.startsWith("tel:") || lower.startsWith("mailto:") || lower.startsWith("sms:") || lower.startsWith("intent:")) {
+            return try {
+                Utils.openUri(this, target)
+                true
+            } catch (ignored: Throwable) {
+                true
+            }
+        }
+
+        if (lower.startsWith("http://") || lower.startsWith("https://")) {
+            try {
+                if (view != null && view.url != target) view.loadUrl(target)
+            } catch (ignored: Throwable) {}
+            return true
+        }
+
+        return false
     }
 
     private fun openUrl(actionName: String, url: String) {
