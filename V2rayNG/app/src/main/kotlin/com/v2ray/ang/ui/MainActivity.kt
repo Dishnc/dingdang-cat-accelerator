@@ -1,5 +1,6 @@
 package com.v2ray.ang.ui
 
+import android.arch.lifecycle.Observer
 import android.arch.lifecycle.ViewModelProviders
 import android.content.Intent
 import android.net.VpnService
@@ -67,8 +68,8 @@ class MainActivity : BaseActivity() {
     }
 
     private fun setupViewModelObserver() {
-        mainViewModel.isRunning.observe(this, {
-            val running = it ?: return@observe
+        mainViewModel.isRunning.observe(this, Observer<Boolean> { runningValue ->
+            val running = runningValue ?: return@Observer
             if (running) {
                 status_dot.setBackgroundResource(R.drawable.bg_ddcat_status_dot_on)
                 tv_connection_state.text = "当前状态：已加速"

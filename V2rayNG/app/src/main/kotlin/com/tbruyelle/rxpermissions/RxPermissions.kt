@@ -17,7 +17,7 @@ import rx.Observable
 class RxPermissions(private val activity: Activity) {
 
     fun request(vararg permissions: String): Observable<Boolean> {
-        return Observable.create { subscriber ->
+        return Observable.create<Boolean> { subscriber ->
             try {
                 val missing = permissions.filter { permission ->
                     ContextCompat.checkSelfPermission(activity, permission) != PackageManager.PERMISSION_GRANTED
