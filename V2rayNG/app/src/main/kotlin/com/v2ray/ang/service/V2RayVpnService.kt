@@ -238,6 +238,7 @@ class V2RayVpnService : VpnService(), ServiceControl {
         try {
             mInterface = builder.establish()!!
             diag.append("builder.establish=success\n")
+            diag.append("before sendFd call\n")
             defaultDPreference.setPrefString("ddcat_vpn_last_setup", diag.toString())
         } catch (e: Exception) {
             diag.append("builder.establish=failed err=").append(e.message).append("\n")
@@ -250,38 +251,67 @@ class V2RayVpnService : VpnService(), ServiceControl {
         sendFd()
     }
 
+    private fun appendVpnDiag(line: String) {
+        try {
+            val oldDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "")
+            defaultDPreference.setPrefString("ddcat_vpn_last_setup", oldDiag + "\n" + line)
+        } catch (ignored: Exception) {
+        }
+    }
+
     private fun sendFd() {
         val fd = mInterface.fileDescriptor
-        val path = File(Utils.packagePath(applicationContext), "sock_path").absolutePath
+        val paths = ArrayList<String>()
+        fun addPath(path: String?) {
+            if (!path.isNullOrBlank() && !paths.contains(path)) {
+                paths.add(path)
+            }
+        }
+        addPath(File(Utils.packagePath(applicationContext), "sock_path").absolutePath)
+        addPath(File(applicationInfo.dataDir, "sock_path").absolutePath)
+        addPath(File(filesDir.parentFile, "sock_path").absolutePath)
+
+        appendVpnDiag("sendFd=start; paths=" + paths.joinToString("|") + "; fd=" + fd.toString())
 
         GlobalScope.launch(Dispatchers.IO) {
             var tries = 0
-            while (true) try {
-                Thread.sleep(1000L shl tries)
-                Log.d(packageName, "sendFd tries: $tries")
-                LocalSocket().use { localSocket ->
-                    localSocket.connect(LocalSocketAddress(path, LocalSocketAddress.Namespace.FILESYSTEM))
-                    localSocket.setFileDescriptorsForSend(arrayOf(fd))
-                    localSocket.outputStream.write(42)
-                }
+            var lastError = ""
+            while (tries <= 12) {
                 try {
-                    val oldDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "")
-                    defaultDPreference.setPrefString("ddcat_vpn_last_setup", oldDiag + "\nsendFd=success tries=" + tries)
+                    val delayMs = when (tries) {
+                        0 -> 100L
+                        1 -> 300L
+                        2 -> 700L
+                        else -> 1000L
+                    }
+                    Thread.sleep(delayMs)
                 } catch (ignored: Exception) {
                 }
-                break
-            } catch (e: Exception) {
-                Log.d(packageName, e.toString())
-                if (tries > 5) {
+
+                for (path in paths) {
                     try {
-                        val oldDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "")
-                        defaultDPreference.setPrefString("ddcat_vpn_last_setup", oldDiag + "\nsendFd=failed after retries; err=" + e.toString())
-                    } catch (ignored: Exception) {
+                        Log.d(packageName, "sendFd tries: $tries path=$path")
+                        LocalSocket().use { localSocket ->
+                            localSocket.connect(LocalSocketAddress(path, LocalSocketAddress.Namespace.FILESYSTEM))
+                            localSocket.setFileDescriptorsForSend(arrayOf(fd))
+                            localSocket.outputStream.write(42)
+                            localSocket.outputStream.flush()
+                        }
+                        appendVpnDiag("sendFd=success; tries=" + tries + "; path=" + path)
+                        return@launch
+                    } catch (e: Exception) {
+                        lastError = "try=" + tries + "; path=" + path + "; err=" + e.javaClass.simpleName + ":" + (e.message ?: "")
+                        Log.d(packageName, lastError)
                     }
-                    break
+                }
+
+                // Keep the diagnostic short but prove that fd handoff is still retrying.
+                if (tries == 0 || tries == 2 || tries == 5 || tries == 12) {
+                    appendVpnDiag("sendFd=retry; " + lastError)
                 }
                 tries += 1
             }
+            appendVpnDiag("sendFd=failed after retries; lastError=" + lastError)
         }
     }
 
