@@ -16,8 +16,8 @@ android {
         minSdkVersion 17
         targetSdkVersion Integer.parseInt("$targetSdkVer")
         multiDexEnabled true
-        versionCode 1117
-        versionName "1.1.7-ddcat-runtime-tun2socks-packaging"
+        versionCode 1100
+        versionName "1.1.0-ddcat-verified-runtime"
     }
 
     buildTypes {
@@ -36,14 +36,6 @@ android {
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
-        // Explicitly package legacy native tun2socks from jniLibs.
-        // Some earlier builds only carried libgojni from libv2ray.aar, so the VPN fd socket was never created.
-        main.jniLibs.srcDirs = ['src/main/jniLibs']
-    }
-
-    packagingOptions {
-        doNotStrip '*/arm64-v8a/libtun2socks.so'
-        doNotStrip '*/libtun2socks.so'
     }
 
     kotlinOptions {

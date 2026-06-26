@@ -30,8 +30,6 @@ import rx.Observable
 import rx.Subscription
 import java.lang.ref.SoftReference
 import java.io.File
-import java.io.FileOutputStream
-import java.util.zip.ZipFile
 import kotlin.math.min
 
 object V2RayServiceManager {
@@ -49,61 +47,11 @@ object V2RayServiceManager {
             val context = value?.get()?.getService()?.applicationContext
             context?.let {
                 v2rayPoint.packageName = Utils.packagePath(context)
-                // V1.1.7: force the native core to a runtime directory that contains libtun2socks.so.
-                // nativeLibraryDir can be missing libtun2socks.so even when libgojni is loaded correctly.
-                v2rayPoint.packageCodePath = ensureTun2socksRuntimeDir(context)
+                v2rayPoint.packageCodePath = context.applicationInfo.nativeLibraryDir + "/"
                 Seq.setContext(context)
             }
         }
     var currentConfigName = "NG"
-
-    private fun ensureTun2socksRuntimeDir(context: Context): String {
-        val runtimeDir = File(context.filesDir, "native")
-        try {
-            if (!runtimeDir.exists()) {
-                runtimeDir.mkdirs()
-            }
-            val target = File(runtimeDir, "libtun2socks.so")
-            fun valid(file: File): Boolean {
-                return file.exists() && file.length() > 100000L
-            }
-            if (!valid(target)) {
-                try {
-                    val extracted = File(context.applicationInfo.nativeLibraryDir, "libtun2socks.so")
-                    if (valid(extracted)) {
-                        extracted.copyTo(target, overwrite = true)
-                    }
-                } catch (ignored: Exception) {
-                }
-            }
-            if (!valid(target)) {
-                try {
-                    val zip = ZipFile(context.applicationInfo.sourceDir)
-                    try {
-                        val entries = arrayOf("lib/arm64-v8a/libtun2socks.so", "lib/arm64/libtun2socks.so")
-                        for (entryName in entries) {
-                            val entry = zip.getEntry(entryName) ?: continue
-                            zip.getInputStream(entry).use { input ->
-                                FileOutputStream(target).use { output ->
-                                    input.copyTo(output)
-                                }
-                            }
-                            break
-                        }
-                    } finally {
-                        zip.close()
-                    }
-                } catch (ignored: Exception) {
-                }
-            }
-            if (target.exists()) {
-                target.setReadable(true, false)
-                target.setExecutable(true, false)
-            }
-        } catch (ignored: Exception) {
-        }
-        return runtimeDir.absolutePath + "/"
-    }
 
     private var lastQueryTime = 0L
     private var mBuilder: NotificationCompat.Builder? = null
@@ -193,31 +141,11 @@ object V2RayServiceManager {
                     .append("domain=").append(domain).append("\n")
                     .append("name=").append(currentConfigName).append("\n")
             try {
-                val nativeDir = File(service.applicationInfo.nativeLibraryDir)
-                val tun2socks = File(nativeDir, "libtun2socks.so")
-                val runtimeDir = File(service.filesDir, "native")
-                val runtimeTun = File(runtimeDir, "libtun2socks.so")
-                val nativeList = nativeDir.listFiles()?.joinToString(",") { it.name + ":" + it.length() } ?: "null"
-                var apkHasTun = false
-                var apkTunSize = -1L
-                try {
-                    val zip = ZipFile(service.applicationInfo.sourceDir)
-                    try {
-                        val entry = zip.getEntry("lib/arm64-v8a/libtun2socks.so")
-                        apkHasTun = entry != null
-                        if (entry != null) apkTunSize = entry.size
-                    } finally {
-                        zip.close()
-                    }
-                } catch (ignored: Exception) {
-                }
+                val tun2socks = File(service.applicationInfo.nativeLibraryDir, "libtun2socks.so")
                 diag.append("nativeLibraryDir=").append(service.applicationInfo.nativeLibraryDir).append("\n")
-                        .append("nativeLibraryDirList=").append(nativeList).append("\n")
                         .append("tun2socksExists=").append(tun2socks.exists()).append(" size=").append(if (tun2socks.exists()) tun2socks.length() else -1).append("\n")
-                        .append("apkHasTun2socks=").append(apkHasTun).append(" apkTunSize=").append(apkTunSize).append("\n")
-                        .append("runtimeTun2socksExists=").append(runtimeTun.exists()).append(" size=").append(if (runtimeTun.exists()) runtimeTun.length() else -1).append("\n")
                         .append("packagePath=").append(Utils.packagePath(service.applicationContext)).append("\n")
-                        .append("packageCodePathForCore=").append(ensureTun2socksRuntimeDir(service.applicationContext)).append("\n")
+                        .append("packageCodePathForCore=").append(service.applicationInfo.nativeLibraryDir + "/").append("\n")
             } catch (e: Exception) {
                 diag.append("native check exception=").append(e.message).append("\n")
             }
