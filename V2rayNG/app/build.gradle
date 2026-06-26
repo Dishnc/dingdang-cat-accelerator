@@ -16,8 +16,8 @@ android {
         minSdkVersion 17
         targetSdkVersion Integer.parseInt("$targetSdkVer")
         multiDexEnabled true
-        versionCode 1209
-        versionName "1.2.0.9-app-update-center"
+        versionCode 1210
+        versionName "1.2.1.0-login-state-ui"
     }
 
     buildTypes {

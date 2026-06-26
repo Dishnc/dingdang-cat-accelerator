@@ -63,6 +63,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         private const val REQ_VPN_PREPARE = 1100
         private const val PREF_DDCAT_SERVICE = "ddcat_service_url"
         private const val PREF_DDCAT_EMAIL = "ddcat_email"
+        private const val PREF_DDCAT_LOGGED_IN = "ddcat_logged_in"
         private const val DEFAULT_SERVICE_BASE = "https://buy.aisuper.top"
         private const val MONTH_PLAN_URL = "https://buy.aisuper.top/buy/1"
         private const val QUARTER_PLAN_URL = "https://buy.aisuper.top/buy/15"
@@ -72,6 +73,12 @@ class DingdangLoginActivity : AppCompatActivity() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var emailInput: EditText
+    private lateinit var loginCard: LinearLayout
+    private lateinit var connCard: LinearLayout
+    private lateinit var accountCard: LinearLayout
+    private lateinit var actionsRow: LinearLayout
+    private lateinit var logoutButton: TextView
+    private lateinit var versionBadge: TextView
     private lateinit var statusText: TextView
     private lateinit var connectionBadge: TextView
     private lateinit var connectionSubText: TextView
@@ -85,6 +92,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     private lateinit var accountTrafficPercentValue: TextView
     private lateinit var accountTrafficProgress: ProgressBar
     private var activeIndex: Int = -1
+    private var isLoggedIn: Boolean = false
     private var isAccelerating: Boolean = false
     private var serviceReceiverRegistered: Boolean = false
     private var pendingUpdateApk: File? = null
@@ -133,20 +141,29 @@ class DingdangLoginActivity : AppCompatActivity() {
         title = "DdmNG"
         defaultDPreference.setPrefString(PREF_DDCAT_SERVICE, DEFAULT_SERVICE_BASE.trim().trimEnd('/'))
         buildUi()
-        emailInput.setText(defaultDPreference.getPrefString(PREF_DDCAT_EMAIL, ""))
-        startButton.isEnabled = AngConfigManager.configs.index >= 0
         activeIndex = AngConfigManager.configs.index
-        if (activeIndex >= 0) {
-            setReadyState("专属线路已准备，可直接一键加速")
-            val bean = AngConfigManager.configs.vmess.getOrNull(activeIndex)
-            if (bean != null) {
-                accountEmailValue.text = defaultDPreference.getPrefString(PREF_DDCAT_EMAIL, "已导入线路")
+        val savedEmail = defaultDPreference.getPrefString(PREF_DDCAT_EMAIL, "").trim()
+        emailInput.setText(savedEmail)
+        val hasSavedLogin = defaultDPreference.getPrefBoolean(PREF_DDCAT_LOGGED_IN, false) && savedEmail.isNotBlank()
+        if (hasSavedLogin) {
+            accountEmailValue.text = savedEmail
+            setLoggedInUi(true)
+            if (activeIndex >= 0) {
+                setReadyState("专属线路已准备，可直接一键加速")
                 accountStatusValue.text = "已准备"
-                accountExpireValue.text = "登录后自动刷新"
-                accountTrafficDetailValue.text = "登录后自动刷新"
+                accountExpireValue.text = "正在刷新账号信息"
+                accountTrafficDetailValue.text = "正在刷新账号信息"
                 accountTrafficPercentValue.text = "--"
                 accountTrafficProgress.progress = 0
+                startButton.isEnabled = true
+            } else {
+                setReadyState("正在恢复账号线路信息")
+                startButton.isEnabled = false
             }
+            mainHandler.postDelayed({ doLogin(true) }, 350)
+        } else {
+            setLoggedInUi(false)
+            resetAccountInfoForLoggedOut()
         }
         mainHandler.postDelayed({ checkForUpdates(false) }, 1500)
     }
@@ -206,8 +223,14 @@ class DingdangLoginActivity : AppCompatActivity() {
         topTitle.typeface = Typeface.DEFAULT_BOLD
         top.addView(topTitle, LinearLayout.LayoutParams(0, -1, 1f))
 
-        val topRightSpacer = TextView(this)
-        top.addView(topRightSpacer, LinearLayout.LayoutParams(dp(44), dp(44)))
+        versionBadge = TextView(this)
+        versionBadge.text = "V" + BuildConfig.VERSION_NAME
+        versionBadge.setTextColor(Color.rgb(156, 202, 245))
+        versionBadge.textSize = 11f
+        versionBadge.gravity = Gravity.CENTER
+        versionBadge.maxLines = 2
+        versionBadge.background = rounded(Color.argb(72, 10, 42, 88), dp(13).toFloat(), Color.argb(90, 86, 165, 245), 1)
+        top.addView(versionBadge, LinearLayout.LayoutParams(dp(92), dp(34)))
 
         val logo = ImageView(this)
         logo.setImageResource(R.drawable.ddmng_logo)
@@ -234,7 +257,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         heroSub.setPadding(0, dp(4), 0, dp(16))
         box.addView(heroSub, LinearLayout.LayoutParams(-1, -2))
 
-        val loginCard = card()
+        loginCard = card()
         box.addView(loginCard, cardLp())
         loginCard.addView(sectionTitle("👤", "登录 / 查询账号"))
 
@@ -267,7 +290,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         refreshLp.leftMargin = dp(12)
         loginRow.addView(refreshButton, refreshLp)
 
-        val connCard = card()
+        connCard = card()
         box.addView(connCard, cardLp())
         val connHeader = LinearLayout(this)
         connHeader.gravity = Gravity.CENTER_VERTICAL
@@ -298,7 +321,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         }
         connCard.addView(startButton, LinearLayout.LayoutParams(-1, dp(60)))
 
-        val accountCard = card()
+        accountCard = card()
         box.addView(accountCard, cardLp())
         accountCard.addView(sectionTitle("👤", "账号信息"))
         accountEmailValue = row(accountCard, "账号", defaultDPreference.getPrefString(PREF_DDCAT_EMAIL, "--"))
@@ -314,23 +337,30 @@ class DingdangLoginActivity : AppCompatActivity() {
         progressLp.bottomMargin = dp(4)
         accountCard.addView(accountTrafficProgress, progressLp)
 
-        val actions = LinearLayout(this)
-        actions.orientation = LinearLayout.HORIZONTAL
+        actionsRow = LinearLayout(this)
+        actionsRow.orientation = LinearLayout.HORIZONTAL
         val actionsLp = LinearLayout.LayoutParams(-1, dp(58))
         actionsLp.topMargin = dp(8)
-        box.addView(actions, actionsLp)
+        box.addView(actionsRow, actionsLp)
         val renew = actionButton("网络续费")
         val order = actionButton("访问网站")
         val support = actionButton("联系客服")
         renew.setOnClickListener { showRenewPlansDialog() }
         order.setOnClickListener { openOfficialWebsite("访问网站") }
         support.setOnClickListener { openOfficialWebsite("联系客服") }
-        actions.addView(renew, LinearLayout.LayoutParams(0, -1, 1f))
-        val p2 = LinearLayout.LayoutParams(0, -1, 1f); p2.leftMargin = dp(10); actions.addView(order, p2)
-        val p3 = LinearLayout.LayoutParams(0, -1, 1f); p3.leftMargin = dp(10); actions.addView(support, p3)
+        actionsRow.addView(renew, LinearLayout.LayoutParams(0, -1, 1f))
+        val p2 = LinearLayout.LayoutParams(0, -1, 1f); p2.leftMargin = dp(10); actionsRow.addView(order, p2)
+        val p3 = LinearLayout.LayoutParams(0, -1, 1f); p3.leftMargin = dp(10); actionsRow.addView(support, p3)
+
+        logoutButton = outlineButton("退出登录 / 更换邮箱")
+        logoutButton.setOnClickListener { logoutAccount() }
+        val logoutLp = LinearLayout.LayoutParams(-1, dp(52))
+        logoutLp.topMargin = dp(4)
+        logoutLp.bottomMargin = dp(10)
+        box.addView(logoutButton, logoutLp)
 
         statusText = TextView(this)
-        statusText.text = "输入邮箱后即可自动查询账号并准备专属线路。服务地址由系统自动处理，无需填写。"
+        statusText.text = "输入邮箱后即可自动查询账号并准备专属线路。"
         statusText.setTextColor(Color.rgb(126, 151, 184))
         statusText.textSize = 12f
         statusText.gravity = Gravity.CENTER
@@ -348,7 +378,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         setContentView(root)
     }
 
-    private fun doLogin() {
+    private fun doLogin(auto: Boolean = false) {
         hideKeyboard()
         val base = resolveServiceBase()
         val email = emailInput.text.toString().trim()
@@ -383,6 +413,7 @@ class DingdangLoginActivity : AppCompatActivity() {
                 val index = storeAsVerifiedVlessConfig(host, port, uuid, flow, email)
                 defaultDPreference.setPrefString(PREF_DDCAT_SERVICE, base)
                 defaultDPreference.setPrefString(PREF_DDCAT_EMAIL, email)
+                defaultDPreference.setPrefBoolean(PREF_DDCAT_LOGGED_IN, true)
                 activeIndex = index
 
                 val statusTextValue = data.optString("status_text", obj.optString("status_text", "正常使用"))
@@ -396,6 +427,7 @@ class DingdangLoginActivity : AppCompatActivity() {
                     accountStatusValue.text = statusTextValue.ifBlank { "正常使用" }
                     accountExpireValue.text = expire.ifBlank { "--" }
                     updateTrafficUsage(used, total, remain)
+                    setLoggedInUi(true)
                     setReadyState("登录成功，专属线路已准备")
                     status("登录成功，专属线路已准备。")
                     applyExpireWarning(expire)
@@ -406,10 +438,17 @@ class DingdangLoginActivity : AppCompatActivity() {
             } catch (e: Throwable) {
                 mainHandler.post {
                     status("登录失败：${e.message ?: e.javaClass.name}")
-                    connectionSubText.text = "未能获取专属线路，请确认邮箱是否正确"
+                    if (auto && AngConfigManager.configs.index >= 0) {
+                        setLoggedInUi(true)
+                        connectionSubText.text = "账号信息暂时刷新失败，可继续使用已保存线路"
+                        startButton.isEnabled = true
+                    } else {
+                        setLoggedInUi(false)
+                        connectionSubText.text = "未能获取专属线路，请确认邮箱是否正确"
+                        startButton.isEnabled = false
+                    }
                     loginButton.isEnabled = true
                     refreshButton.isEnabled = true
-                    startButton.isEnabled = AngConfigManager.configs.index >= 0
                 }
             }
         }.start()
@@ -620,6 +659,54 @@ class DingdangLoginActivity : AppCompatActivity() {
         val base = DEFAULT_SERVICE_BASE.trim().trimEnd('/')
         defaultDPreference.setPrefString(PREF_DDCAT_SERVICE, base)
         return base
+    }
+
+    private fun setLoggedInUi(loggedIn: Boolean) {
+        isLoggedIn = loggedIn
+        loginCard.visibility = if (loggedIn) View.GONE else View.VISIBLE
+        connCard.visibility = if (loggedIn) View.VISIBLE else View.GONE
+        accountCard.visibility = if (loggedIn) View.VISIBLE else View.GONE
+        actionsRow.visibility = if (loggedIn) View.VISIBLE else View.GONE
+        logoutButton.visibility = if (loggedIn) View.VISIBLE else View.GONE
+        if (!loggedIn) {
+            startButton.isEnabled = false
+        }
+    }
+
+    private fun resetAccountInfoForLoggedOut() {
+        accountEmailValue.text = "--"
+        accountStatusValue.text = "未登录"
+        accountExpireValue.text = "--"
+        accountExpireValue.setTextColor(Color.rgb(198, 216, 238))
+        accountTrafficDetailValue.text = "--"
+        accountTrafficPercentValue.text = "--"
+        accountTrafficProgress.progress = 0
+        setDisconnectedState("当前未登录")
+        status("请输入邮箱账号登录。")
+    }
+
+    private fun logoutAccount() {
+        hideKeyboard()
+        try {
+            if (isAccelerating) {
+                Utils.stopVService(this)
+            }
+        } catch (ignored: Throwable) {
+        }
+        try {
+            AngConfigManager.configs.vmess.clear()
+            AngConfigManager.configs.index = -1
+            AngConfigManager.storeConfigFile()
+        } catch (ignored: Throwable) {
+        }
+        activeIndex = -1
+        isAccelerating = false
+        defaultDPreference.setPrefBoolean(PREF_DDCAT_LOGGED_IN, false)
+        defaultDPreference.setPrefString(PREF_DDCAT_EMAIL, "")
+        emailInput.setText("")
+        resetAccountInfoForLoggedOut()
+        setLoggedInUi(false)
+        toast("已退出登录")
     }
 
     private fun httpGet(url: String): String {
@@ -842,7 +929,10 @@ class DingdangLoginActivity : AppCompatActivity() {
                 }
                 val enabled = obj.optBoolean("enabled", true)
                 if (!enabled) {
-                    if (manual) mainHandler.post { status("当前已是最新版本。") }
+                    if (manual) mainHandler.post {
+                        status("当前已是最新版本：" + BuildConfig.VERSION_NAME)
+                        showUpdateLatestDialog()
+                    }
                     return@Thread
                 }
                 val info = parseUpdateInfo(obj)
@@ -851,14 +941,15 @@ class DingdangLoginActivity : AppCompatActivity() {
                         showUpdateDialog(info)
                     } else if (manual) {
                         status("当前已是最新版本：" + BuildConfig.VERSION_NAME)
-                        toast("当前已是最新版本")
+                        showUpdateLatestDialog(info)
                     }
                 }
             } catch (e: Throwable) {
                 if (manual) {
                     mainHandler.post {
-                        status("检查更新失败：" + (e.message ?: e.javaClass.name))
-                        toast("检查更新失败")
+                        val msg = "检查更新失败：" + (e.message ?: e.javaClass.name)
+                        status(msg)
+                        showUpdateMessageDialog("检查更新失败", msg, false)
                     }
                 }
             }
@@ -889,6 +980,31 @@ class DingdangLoginActivity : AppCompatActivity() {
         )
     }
 
+    private fun showUpdateLatestDialog(info: UpdateInfo? = null) {
+        val latest = info?.latestVersionName?.takeIf { it.isNotBlank() } ?: BuildConfig.VERSION_NAME
+        val body = "当前版本号：" + BuildConfig.VERSION_NAME + "\n" +
+                "最新版本号：" + latest + "\n\n" +
+                "当前已是最新版本，无需更新。"
+        showUpdateMessageDialog("版本检查", body, false)
+    }
+
+    private fun showUpdateMessageDialog(titleText: String, bodyText: String, force: Boolean) {
+        val dialog = android.app.Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val wrap = updateDialogCardBase(titleText)
+        val body = TextView(this)
+        body.text = bodyText
+        body.setTextColor(primaryText)
+        body.textSize = 14f
+        body.setLineSpacing(dp(3).toFloat(), 1.0f)
+        body.setPadding(0, dp(12), 0, dp(14))
+        wrap.addView(body, LinearLayout.LayoutParams(-1, -2))
+        val ok = primaryButton("确定")
+        ok.setOnClickListener { dialog.dismiss() }
+        wrap.addView(ok, LinearLayout.LayoutParams(-1, dp(50)))
+        showCenterCardDialog(dialog, wrap, force)
+    }
+
     private fun showUpdateDialog(info: UpdateInfo) {
         val versionName = if (info.latestVersionName.isBlank()) info.latestVersionCode.toString() else info.latestVersionName
         val lines = if (info.changelog.isNotEmpty()) {
@@ -897,27 +1013,102 @@ class DingdangLoginActivity : AppCompatActivity() {
             "• 优化使用体验\n• 修复已知问题"
         }
         val sizeText = if (info.apkSize > 0L) "\n安装包大小：" + humanFileSize(info.apkSize) else ""
-        val forceText = if (info.forceRequired || info.forceUpdate) "\n\n当前版本需要更新后继续使用。" else ""
-        val message = "当前版本：" + BuildConfig.VERSION_NAME + "\n" +
-                "最新版本：" + versionName + "\n\n" +
-                "更新内容：\n" + lines + sizeText + forceText
-        val builder = android.app.AlertDialog.Builder(this)
-        builder.setTitle(if (info.title.isBlank()) "发现新版本" else info.title)
-        builder.setMessage(message)
-        builder.setPositiveButton("立即更新") { _, _ -> downloadAndInstallUpdate(info) }
-        if (!info.forceRequired && !info.forceUpdate) {
-            builder.setNegativeButton("稍后再说", null)
-        }
-        val dialog = builder.create()
-        dialog.setCancelable(!info.forceRequired && !info.forceUpdate)
-        dialog.setOnShowListener {
-            try {
-                dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.setTextColor(accent2)
-                dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE)?.setTextColor(Color.rgb(88, 112, 145))
-            } catch (ignored: Throwable) {
+        val force = info.forceRequired || info.forceUpdate
+        val forceText = if (force) "\n\n当前版本需要更新后继续使用。" else ""
+
+        val dialog = android.app.Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val wrap = updateDialogCardBase(if (info.title.isBlank()) "发现新版本" else info.title)
+
+        val versionBox = LinearLayout(this)
+        versionBox.orientation = LinearLayout.VERTICAL
+        versionBox.setPadding(dp(14), dp(12), dp(14), dp(12))
+        versionBox.background = rounded(Color.argb(120, 5, 22, 50), dp(15).toFloat(), Color.argb(110, 80, 150, 238), 1)
+        val current = TextView(this)
+        current.text = "当前版本号：" + BuildConfig.VERSION_NAME
+        current.setTextColor(primaryText)
+        current.textSize = 14f
+        versionBox.addView(current, LinearLayout.LayoutParams(-1, -2))
+        val latest = TextView(this)
+        latest.text = "最新版本号：" + versionName
+        latest.setTextColor(accent)
+        latest.textSize = 15f
+        latest.typeface = Typeface.DEFAULT_BOLD
+        latest.setPadding(0, dp(6), 0, 0)
+        versionBox.addView(latest, LinearLayout.LayoutParams(-1, -2))
+        val versionBoxLp = LinearLayout.LayoutParams(-1, -2)
+        versionBoxLp.topMargin = dp(12)
+        wrap.addView(versionBox, versionBoxLp)
+
+        val message = TextView(this)
+        message.text = "有新版本待更新。\n\n更新内容：\n" + lines + sizeText + forceText
+        message.setTextColor(primaryText)
+        message.textSize = 14f
+        message.setLineSpacing(dp(3).toFloat(), 1.0f)
+        message.setPadding(0, dp(14), 0, dp(12))
+        wrap.addView(message, LinearLayout.LayoutParams(-1, -2))
+
+        val buttons = LinearLayout(this)
+        buttons.orientation = LinearLayout.HORIZONTAL
+        buttons.gravity = Gravity.CENTER_VERTICAL
+        if (!force) {
+            val later = outlineButton("稍后再说")
+            later.setOnClickListener { dialog.dismiss() }
+            buttons.addView(later, LinearLayout.LayoutParams(0, dp(50), 1f))
+            val p = LinearLayout.LayoutParams(0, dp(50), 1f)
+            p.leftMargin = dp(12)
+            val now = primaryButton("立即更新")
+            now.setOnClickListener {
+                dialog.dismiss()
+                downloadAndInstallUpdate(info)
             }
+            buttons.addView(now, p)
+        } else {
+            val now = primaryButton("立即更新")
+            now.setOnClickListener {
+                dialog.dismiss()
+                downloadAndInstallUpdate(info)
+            }
+            buttons.addView(now, LinearLayout.LayoutParams(-1, dp(50)))
         }
+        wrap.addView(buttons, LinearLayout.LayoutParams(-1, -2))
+        showCenterCardDialog(dialog, wrap, force)
+    }
+
+    private fun updateDialogCardBase(titleText: String): LinearLayout {
+        val wrap = LinearLayout(this)
+        wrap.orientation = LinearLayout.VERTICAL
+        wrap.setPadding(dp(20), dp(20), dp(20), dp(20))
+        wrap.background = rounded(Color.rgb(7, 26, 61), dp(22).toFloat(), Color.argb(160, 86, 174, 255), 1)
+
+        val badge = TextView(this)
+        badge.text = "DdmNG"
+        badge.setTextColor(accent)
+        badge.textSize = 13f
+        badge.gravity = Gravity.CENTER
+        badge.typeface = Typeface.DEFAULT_BOLD
+        badge.background = rounded(Color.argb(85, 22, 84, 138), dp(18).toFloat(), Color.argb(120, 75, 180, 255), 1)
+        val badgeLp = LinearLayout.LayoutParams(dp(86), dp(32))
+        badgeLp.gravity = Gravity.CENTER_HORIZONTAL
+        wrap.addView(badge, badgeLp)
+
+        val title = TextView(this)
+        title.text = titleText
+        title.setTextColor(primaryText)
+        title.textSize = 21f
+        title.typeface = Typeface.DEFAULT_BOLD
+        title.gravity = Gravity.CENTER
+        title.setPadding(0, dp(12), 0, 0)
+        wrap.addView(title, LinearLayout.LayoutParams(-1, -2))
+        return wrap
+    }
+
+    private fun showCenterCardDialog(dialog: android.app.Dialog, content: View, force: Boolean) {
+        dialog.setContentView(content)
+        dialog.setCancelable(!force)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog.show()
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.90f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
     }
 
     private fun downloadAndInstallUpdate(info: UpdateInfo) {
