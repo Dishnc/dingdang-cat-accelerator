@@ -1,0 +1,112 @@
+name: Dingdang Legacy XTLS V1.1.7 ARM64 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+jobs:
+  build-debug-apk:
+    name: Build Dingdang V1.1.7 runtime tun2socks packaging
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 for Android SDK tools
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Prepare Android SDK packages
+        run: |
+          set -e
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager)"
+          fi
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" \
+            "platform-tools" \
+            "platforms;android-30" \
+            "build-tools;30.0.2"
+
+      - name: Set up JDK 8 for legacy Gradle build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 8
+
+      - name: Materialize exact tun2socks before build
+        run: |
+          set -e
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p V2rayNG/app/src/main/jniLibs/arm64-v8a
+          if [ ! -f tools/dingdang/libtun2socks.arm64.b64 ]; then
+            echo "Missing tools/dingdang/libtun2socks.arm64.b64"
+            exit 1
+          fi
+          base64 -d tools/dingdang/libtun2socks.arm64.b64 > V2rayNG/app/src/main/jniLibs/arm64-v8a/libtun2socks.so
+          chmod 0644 V2rayNG/app/src/main/jniLibs/arm64-v8a/libtun2socks.so
+          echo "Prepared libtun2socks.so:"
+          ls -la V2rayNG/app/src/main/jniLibs/arm64-v8a/libtun2socks.so
+          sha256sum V2rayNG/app/src/main/jniLibs/arm64-v8a/libtun2socks.so
+          file V2rayNG/app/src/main/jniLibs/arm64-v8a/libtun2socks.so || true
+
+      - name: Build Debug APK
+        run: |
+          set -e
+          cd "$GITHUB_WORKSPACE/V2rayNG"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+          ./gradlew --no-daemon clean assembleDebug --stacktrace --info
+
+      - name: Locate APK files
+        if: always()
+        run: |
+          find "$GITHUB_WORKSPACE/V2rayNG" -name "*.apk" -type f -print || true
+
+      - name: Verify tun2socks inside APK
+        run: |
+          set -e
+          APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*arm64-v8a*.apk" -type f | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "No arm64-v8a APK found"
+            exit 1
+          fi
+          echo "Checking APK: $APK_FILE"
+          unzip -l "$APK_FILE" | grep -E "lib/arm64-v8a/(libtun2socks|libgojni)\.so" || true
+          if ! unzip -l "$APK_FILE" | grep -q "lib/arm64-v8a/libtun2socks.so"; then
+            echo "ERROR: libtun2socks.so is not packaged in APK"
+            exit 1
+          fi
+
+      - name: Prepare ARM64 APK artifact
+        run: |
+          set -e
+          mkdir -p "$GITHUB_WORKSPACE/artifact"
+          APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*arm64-v8a*.apk" -type f | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "No arm64-v8a APK file found. Build output tree:"
+            find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs" -maxdepth 6 -type f -print || true
+            exit 1
+          fi
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/artifact/DingdangCat_LegacyXTLS_V1.1.7_runtime_tun2socks_packaging_arm64-v8a.apk"
+          ls -la "$GITHUB_WORKSPACE/artifact"
+
+      - name: Upload ARM64 Legacy XTLS APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DingdangCat_LegacyXTLS_V1.1.7_runtime_tun2socks_packaging_arm64_v8a_apk
+          path: artifact/DingdangCat_LegacyXTLS_V1.1.7_runtime_tun2socks_packaging_arm64-v8a.apk
+          if-no-files-found: error
