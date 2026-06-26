@@ -513,6 +513,8 @@ class DingdangLoginActivity : AppCompatActivity() {
         }
         return defaultDPreference.getPrefString(PREF_DDCAT_SERVICE, "").trim().trimEnd('/')
     }
+        return defaultDPreference.getPrefString(PREF_DDCAT_SERVICE, "").trim().trimEnd('/')
+    }
 
     private fun httpGet(url: String): String {
         val conn = URL(url).openConnection() as HttpURLConnection
