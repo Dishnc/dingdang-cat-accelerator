@@ -26,7 +26,6 @@ import java.net.URL
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.LinkedHashSet
 import java.util.Locale
 
 class MainActivity : BaseActivity() {
@@ -36,7 +35,8 @@ class MainActivity : BaseActivity() {
         private const val PREF_DDCAT_EMAIL = "ddcat_email"
         private const val PREF_DDCAT_LAST_JSON = "ddcat_last_json"
         private const val PREF_DDCAT_VLESS_URL = "ddcat_vless_url"
-        private const val PREF_DDCAT_CONFIG_GUID = "ddcat_legacy_default"
+        private const val PREF_DDCAT_CONFIG_GUID_KEY = "ddcat_config_guid"
+        private const val LEGACY_FIXED_GUID = "ddcat_legacy_default"
         private const val DEFAULT_REMARK = "叮当猫加速器默认线路"
     }
 
@@ -122,8 +122,9 @@ class MainActivity : BaseActivity() {
             return
         }
 
-        val index = AngConfigManager.getIndexViaGuid(PREF_DDCAT_CONFIG_GUID)
-        if (index < 0) {
+        val guid = currentLineGuid()
+        val index = AngConfigManager.getIndexViaGuid(guid)
+        if (guid.isBlank() || index < 0) {
             toast("专属线路尚未写入，请重新登录账号")
             return
         }
@@ -142,12 +143,19 @@ class MainActivity : BaseActivity() {
     }
 
     private fun startV2Ray() {
-        if (AngConfigManager.configs.index < 0) {
+        val guid = currentLineGuid()
+        val index = AngConfigManager.getIndexViaGuid(guid)
+        if (guid.isBlank() || index < 0) {
             toast("专属线路未选中，请重新登录账号")
             return
         }
-        if (!Utils.startVService(this)) {
+        // Use the original v2rayNG 1.5.0 start helper with a real custom-config GUID.
+        // This makes AngConfigManager.setActiveServer(index), genStoreV2rayConfig(),
+        // PREF_CURR_CONFIG / PREF_CURR_CONFIG_DOMAIN parsing, and service start all run
+        // through the same chain as the stock v2rayNG app.
+        if (!Utils.startVService(this, guid)) {
             toast("启动失败，请检查线路参数或稍后重试")
+            hideCircle()
         }
     }
 
@@ -305,66 +313,73 @@ class MainActivity : BaseActivity() {
 
             enforceLegacyNetworkPrefs()
             val configJson = buildLegacyVlessJson(json)
-            defaultDPreference.setPrefString(AppConfig.ANG_CONFIG + PREF_DDCAT_CONFIG_GUID, configJson)
-
-            val vmess = AngConfig.VmessBean()
-            vmess.guid = PREF_DDCAT_CONFIG_GUID
-            vmess.configVersion = 2
-            vmess.configType = EConfigType.CUSTOM.value
-            vmess.remarks = DEFAULT_REMARK
-            vmess.address = host
-            vmess.port = port
-            vmess.id = uuid
-            // Match the known-good v2rayNG 1.5.0 Legacy XTLS profile.
-            vmess.network = "tcp"
-            vmess.streamSecurity = "xtls"
-            vmess.requestHost = ""
-            vmess.security = "auto"
-            vmess.alterId = 0
-            vmess.headerType = "none"
-
-            upsertLegacyCustomServer(vmess, configJson)
+            upsertLegacyCustomServer(configJson)
         } catch (e: Throwable) {
             tv_login_message.text = "线路写入失败：${e.message ?: e.javaClass.simpleName}"
             false
         }
     }
 
-    private fun upsertLegacyCustomServer(vmess: AngConfig.VmessBean, configJson: String): Boolean {
+    private fun upsertLegacyCustomServer(configJson: String): Boolean {
         return try {
-            vmess.guid = PREF_DDCAT_CONFIG_GUID
+            // v2rayNG_1.5.0 can successfully run this JSON when it is imported as a
+            // custom config. Therefore do the same here: store the JSON under
+            // ANG_CONFIG + guid, keep the VmessBean fields blank, set the real GUID as
+            // active, and let Utils.startVService(...guid) call genStoreV2rayConfig().
+            var guid = currentLineGuid()
+            var index = if (guid.isNotBlank()) AngConfigManager.getIndexViaGuid(guid) else -1
+
+            // Convert the old fixed ddcat_legacy_default entry to a stock timestamp GUID.
+            // This avoids stale fixed-GUID entries produced by earlier test builds.
+            if (guid == LEGACY_FIXED_GUID || index < 0) {
+                val oldIndex = AngConfigManager.getIndexViaGuid(LEGACY_FIXED_GUID)
+                if (oldIndex >= 0) {
+                    try {
+                        AngConfigManager.configs.vmess.removeAt(oldIndex)
+                        AngConfigManager.storeConfigFile()
+                    } catch (ignored: Throwable) {
+                    }
+                }
+                guid = System.currentTimeMillis().toString()
+                index = -1
+            }
+
+            defaultDPreference.setPrefString(AppConfig.ANG_CONFIG + guid, configJson)
+
+            val vmess = AngConfig.VmessBean()
             vmess.configVersion = 2
             vmess.configType = EConfigType.CUSTOM.value
+            vmess.guid = guid
+            vmess.remarks = DEFAULT_REMARK
+            // Match stock v2rayNG custom JSON import behavior. For CUSTOM configs,
+            // the runtime config is read from ANG_CONFIG + guid, not from these fields.
+            vmess.security = ""
+            vmess.network = ""
+            vmess.headerType = ""
+            vmess.address = ""
+            vmess.port = 0
+            vmess.id = ""
+            vmess.alterId = 0
+            vmess.requestHost = ""
+            vmess.streamSecurity = ""
 
             val list = AngConfigManager.configs.vmess
-            val oldIndex = list.indexOfFirst { it.guid == PREF_DDCAT_CONFIG_GUID }
-            val finalIndex = if (oldIndex >= 0) {
-                list[oldIndex] = vmess
-                oldIndex
+            val finalIndex = if (index >= 0) {
+                list[index] = vmess
+                index
             } else {
                 list.add(vmess)
                 list.size - 1
             }
 
-            AngConfigManager.configs.index = finalIndex
+            defaultDPreference.setPrefString(PREF_DDCAT_CONFIG_GUID_KEY, guid)
+            AngConfigManager.setActiveServer(finalIndex)
             AngConfigManager.storeConfigFile()
-            defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG, configJson)
-            defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_GUID, PREF_DDCAT_CONFIG_GUID)
-            defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_NAME, DEFAULT_REMARK)
 
-            // The legacy libv2ray VPN layer needs the remote server domain/IP:port
-            // so the core connection itself is protected from being routed back into the VPN.
-            val serverDomain = if (Utils.isIpv6Address(vmess.address)) {
-                "[${vmess.address}]:${vmess.port}"
-            } else {
-                "${vmess.address}:${vmess.port}"
-            }
-            defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, serverDomain)
-            val tags = LinkedHashSet<String>()
-            tags.add("proxy")
-            tags.add("direct")
-            tags.add("block")
-            defaultDPreference.setPrefStringOrderedSet(AppConfig.PREF_CURR_CONFIG_OUTBOUND_TAGS, tags)
+            // Pre-generate once with the original custom-config path so the debug copy
+            // and subsequent service start use exactly the same PREF_CURR_CONFIG values
+            // as stock v2rayNG_1.5.0 after importing a custom JSON.
+            AngConfigManager.genStoreV2rayConfig(finalIndex)
             true
         } catch (e: Throwable) {
             tv_login_message.text = "线路保存失败：${e.message ?: e.javaClass.simpleName}"
@@ -483,8 +498,9 @@ class MainActivity : BaseActivity() {
     }
 
     private fun copyCurrentConfigForDebug() {
+        val guid = currentLineGuid()
         val config = defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
-                .ifBlank { defaultDPreference.getPrefString(AppConfig.ANG_CONFIG + PREF_DDCAT_CONFIG_GUID, "") }
+                .ifBlank { if (guid.isNotBlank()) defaultDPreference.getPrefString(AppConfig.ANG_CONFIG + guid, "") else "" }
         if (config.isBlank()) {
             toast("当前还没有生成线路配置，请先登录账号")
         } else {
@@ -494,7 +510,15 @@ class MainActivity : BaseActivity() {
     }
 
     private fun isLineReady(): Boolean {
-        return AngConfigManager.getIndexViaGuid(PREF_DDCAT_CONFIG_GUID) >= 0 && defaultDPreference.getPrefString(PREF_DDCAT_VLESS_URL, "").isNotBlank()
+        val guid = currentLineGuid()
+        return guid.isNotBlank() && AngConfigManager.getIndexViaGuid(guid) >= 0 && defaultDPreference.getPrefString(PREF_DDCAT_VLESS_URL, "").isNotBlank()
+    }
+
+    private fun currentLineGuid(): String {
+        val saved = defaultDPreference.getPrefString(PREF_DDCAT_CONFIG_GUID_KEY, "")
+        if (saved.isNotBlank()) return saved
+        // Compatibility with V1.0.7-V1.0.11 builds.
+        return if (AngConfigManager.getIndexViaGuid(LEGACY_FIXED_GUID) >= 0) LEGACY_FIXED_GUID else ""
     }
 
     private fun normalizeBaseUrl(value: String): String {
