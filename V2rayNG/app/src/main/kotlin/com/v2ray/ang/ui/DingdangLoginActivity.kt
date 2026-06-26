@@ -26,6 +26,9 @@ import android.view.Window
 import android.view.inputmethod.InputMethodManager
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AlphaAnimation
+import android.view.animation.Animation
+import android.view.animation.LinearInterpolator
 import android.widget.*
 import com.google.gson.GsonBuilder
 import com.v2ray.ang.AppConfig
@@ -96,6 +99,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     private var isAccelerating: Boolean = false
     private var serviceReceiverRegistered: Boolean = false
     private var pendingUpdateApk: File? = null
+    private var connectionPulseAnimation: AlphaAnimation? = null
 
     private val serviceStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -121,6 +125,9 @@ class DingdangLoginActivity : AppCompatActivity() {
     private val border = Color.argb(125, 68, 156, 255)
     private val primaryText = Color.rgb(236, 247, 255)
     private val secondText = Color.rgb(156, 178, 207)
+    private val disconnectedRed = Color.rgb(255, 96, 96)
+    private val connectedGreen = Color.rgb(64, 232, 143)
+    private val connectingYellow = Color.rgb(255, 202, 89)
 
     private data class UpdateInfo(
             val latestVersionCode: Int,
@@ -203,24 +210,23 @@ class DingdangLoginActivity : AppCompatActivity() {
 
         val box = LinearLayout(this)
         box.orientation = LinearLayout.VERTICAL
-        box.setPadding(dp(18), dp(16), dp(18), dp(18))
+        box.setPadding(dp(18), dp(12), dp(18), dp(18))
         scroll.addView(box, FrameLayout.LayoutParams(-1, -2))
 
         val top = LinearLayout(this)
         top.orientation = LinearLayout.HORIZONTAL
         top.gravity = Gravity.CENTER_VERTICAL
-        box.addView(top, LinearLayout.LayoutParams(-1, dp(48)))
+        box.addView(top, LinearLayout.LayoutParams(-1, dp(44)))
 
         val menuBtn = smallTopButton("☰")
         menuBtn.setOnClickListener { showTopMenu(menuBtn) }
         top.addView(menuBtn, LinearLayout.LayoutParams(dp(44), dp(44)))
 
         val topTitle = TextView(this)
-        topTitle.text = "DdmNG"
+        topTitle.text = ""
         topTitle.setTextColor(primaryText)
-        topTitle.textSize = 22f
+        topTitle.textSize = 1f
         topTitle.gravity = Gravity.CENTER
-        topTitle.typeface = Typeface.DEFAULT_BOLD
         top.addView(topTitle, LinearLayout.LayoutParams(0, -1, 1f))
 
         versionBadge = TextView(this)
@@ -236,15 +242,15 @@ class DingdangLoginActivity : AppCompatActivity() {
         logo.setImageResource(R.drawable.ddmng_logo)
         logo.adjustViewBounds = true
         logo.scaleType = ImageView.ScaleType.FIT_CENTER
-        val logoLp = LinearLayout.LayoutParams(dp(132), dp(132))
+        val logoLp = LinearLayout.LayoutParams(dp(108), dp(108))
         logoLp.gravity = Gravity.CENTER_HORIZONTAL
-        logoLp.topMargin = dp(4)
+        logoLp.topMargin = dp(2)
         box.addView(logo, logoLp)
 
         val heroTitle = TextView(this)
         heroTitle.text = "DdmNG"
         heroTitle.setTextColor(accent)
-        heroTitle.textSize = 34f
+        heroTitle.textSize = 28f
         heroTitle.gravity = Gravity.CENTER
         heroTitle.typeface = Typeface.DEFAULT_BOLD
         box.addView(heroTitle, LinearLayout.LayoutParams(-1, -2))
@@ -252,9 +258,9 @@ class DingdangLoginActivity : AppCompatActivity() {
         val heroSub = TextView(this)
         heroSub.text = "安全 · 稳定 · 高效"
         heroSub.setTextColor(Color.rgb(173, 190, 215))
-        heroSub.textSize = 17f
+        heroSub.textSize = 15f
         heroSub.gravity = Gravity.CENTER
-        heroSub.setPadding(0, dp(4), 0, dp(16))
+        heroSub.setPadding(0, dp(2), 0, dp(12))
         box.addView(heroSub, LinearLayout.LayoutParams(-1, -2))
 
         loginCard = card()
@@ -299,7 +305,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         connHeader.addView(sectionTitle("▮", "连接状态"), LinearLayout.LayoutParams(0, -2, 1f))
         connectionBadge = TextView(this)
         connectionBadge.text = "● 未连接"
-        connectionBadge.setTextColor(Color.rgb(64, 232, 143))
+        connectionBadge.setTextColor(disconnectedRed)
         connectionBadge.textSize = 14f
         connectionBadge.gravity = Gravity.RIGHT or Gravity.CENTER_VERTICAL
         connHeader.addView(connectionBadge, LinearLayout.LayoutParams(dp(110), -2))
@@ -521,7 +527,8 @@ class DingdangLoginActivity : AppCompatActivity() {
         }
         status("正在启动加速服务...")
         connectionBadge.text = "● 连接中"
-        connectionBadge.setTextColor(Color.rgb(255, 202, 89))
+        connectionBadge.setTextColor(connectingYellow)
+        setConnectionCardConnecting()
         connectionSubText.text = "正在建立安全连接，请稍候"
         if (defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN") == "VPN") {
             val intent = VpnService.prepare(this)
@@ -555,7 +562,8 @@ class DingdangLoginActivity : AppCompatActivity() {
         try {
             status("正在断开连接...")
             connectionBadge.text = "● 断开中"
-            connectionBadge.setTextColor(Color.rgb(255, 202, 89))
+            connectionBadge.setTextColor(connectingYellow)
+            setConnectionCardConnecting()
             connectionSubText.text = "正在断开加速服务"
             Utils.stopVService(this)
             setDisconnectedState("断开成功")
@@ -576,7 +584,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         val vpnDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "暂无 VPN setup 诊断信息")
         val svcDiag = defaultDPreference.getPrefString("ddcat_service_last_start", "暂无 Service 启动诊断信息")
         val cfg = defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
-        val all = "=== DdmNG VPN Diagnostic V1.2.0 ===\n" +
+        val all = "=== DdmNG VPN Diagnostic V1.2.1.3 ===\n" +
                 "mode=" + defaultDPreference.getPrefString(AppConfig.PREF_MODE, "") + "\n" +
                 "routingMode=" + defaultDPreference.getPrefString(SettingsActivity.PREF_ROUTING_MODE, "") + "\n" +
                 "localDns=" + defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false) + "\n" +
@@ -724,8 +732,9 @@ class DingdangLoginActivity : AppCompatActivity() {
 
     private fun setReadyState(message: String) {
         isAccelerating = false
+        stopConnectionPulse()
         connectionBadge.text = "● 已准备"
-        connectionBadge.setTextColor(Color.rgb(64, 232, 143))
+        connectionBadge.setTextColor(connectedGreen)
         connectionSubText.text = message
         startButton.text = "🚀  一键加速"
         startButton.isEnabled = AngConfigManager.configs.index >= 0
@@ -734,7 +743,8 @@ class DingdangLoginActivity : AppCompatActivity() {
     private fun setAcceleratingState(message: String) {
         isAccelerating = true
         connectionBadge.text = "● 加速中"
-        connectionBadge.setTextColor(Color.rgb(64, 232, 143))
+        connectionBadge.setTextColor(connectedGreen)
+        startConnectionPulse()
         connectionSubText.text = message + " 不使用时请点击断开连接，可节省流量。"
         startButton.text = "🔌  断开连接"
         startButton.isEnabled = true
@@ -743,8 +753,9 @@ class DingdangLoginActivity : AppCompatActivity() {
 
     private fun setDisconnectedState(message: String) {
         isAccelerating = false
+        stopConnectionPulse()
         connectionBadge.text = "● 未连接"
-        connectionBadge.setTextColor(Color.rgb(64, 232, 143))
+        connectionBadge.setTextColor(disconnectedRed)
         connectionSubText.text = message
         startButton.text = "🚀  一键加速"
         startButton.isEnabled = AngConfigManager.configs.index >= 0
@@ -753,31 +764,139 @@ class DingdangLoginActivity : AppCompatActivity() {
 
     private fun setStartFailureState(message: String) {
         isAccelerating = false
+        stopConnectionPulse()
         connectionBadge.text = "● 失败"
-        connectionBadge.setTextColor(Color.rgb(255, 108, 108))
+        connectionBadge.setTextColor(disconnectedRed)
         connectionSubText.text = message
         startButton.text = "🚀  一键加速"
         startButton.isEnabled = AngConfigManager.configs.index >= 0
         status(message)
     }
 
-    private fun showTopMenu(anchor: View) {
-        val popup = PopupMenu(this, anchor)
-        popup.menu.add("网络续费")
-        popup.menu.add("检查更新")
-        popup.menu.add("访问网站")
-        popup.menu.add("联系客服")
-        popup.setOnMenuItemClickListener { item ->
-            when (item.title.toString()) {
-                "网络续费" -> showRenewPlansDialog()
-                "检查更新" -> checkForUpdates(true)
-                "访问网站" -> openOfficialWebsite("访问网站")
-                "联系客服" -> openOfficialWebsite("联系客服")
-                else -> openOfficialWebsite(item.title.toString())
-            }
-            true
+    private fun setConnectionCardConnecting() {
+        try {
+            connCard.background = rounded(Color.argb(186, 12, 38, 76), dp(20).toFloat(), Color.argb(170, 255, 202, 89), 2)
+            connectionBadge.clearAnimation()
+        } catch (ignored: Throwable) {
         }
-        popup.show()
+    }
+
+    private fun startConnectionPulse() {
+        try {
+            connCard.background = rounded(Color.argb(198, 4, 45, 65), dp(20).toFloat(), Color.argb(230, 64, 232, 143), 2)
+            val anim = AlphaAnimation(0.48f, 1.0f)
+            anim.duration = 900
+            anim.repeatMode = Animation.REVERSE
+            anim.repeatCount = Animation.INFINITE
+            anim.interpolator = LinearInterpolator()
+            connectionPulseAnimation = anim
+            connectionBadge.startAnimation(anim)
+        } catch (ignored: Throwable) {
+        }
+    }
+
+    private fun stopConnectionPulse() {
+        try {
+            connectionBadge.clearAnimation()
+            connectionPulseAnimation = null
+            connCard.background = rounded(cardBg, dp(18).toFloat(), border, 1)
+        } catch (ignored: Throwable) {
+        }
+    }
+
+    private fun showTopMenu(anchor: View) {
+        hideKeyboard()
+        val dialog = android.app.Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val wrap = LinearLayout(this)
+        wrap.orientation = LinearLayout.VERTICAL
+        wrap.setPadding(dp(18), dp(18), dp(18), dp(18))
+        wrap.background = rounded(Color.rgb(7, 26, 61), dp(22).toFloat(), Color.argb(170, 86, 174, 255), 1)
+
+        val title = TextView(this)
+        title.text = "快捷菜单"
+        title.setTextColor(primaryText)
+        title.textSize = 20f
+        title.typeface = Typeface.DEFAULT_BOLD
+        title.gravity = Gravity.CENTER
+        wrap.addView(title, LinearLayout.LayoutParams(-1, -2))
+
+        val tip = TextView(this)
+        tip.text = "请选择需要使用的服务"
+        tip.setTextColor(secondText)
+        tip.textSize = 13f
+        tip.gravity = Gravity.CENTER
+        tip.setPadding(0, dp(6), 0, dp(14))
+        wrap.addView(tip, LinearLayout.LayoutParams(-1, -2))
+
+        wrap.addView(menuDialogItem(dialog, "💎", "网络续费", "选择套餐并完成续费") { showRenewPlansDialog() }, menuItemLp())
+        wrap.addView(menuDialogItem(dialog, "⬆", "检查更新", "检查是否有新版本可用") { checkForUpdates(true) }, menuItemLp())
+        wrap.addView(menuDialogItem(dialog, "🌐", "访问网站", "打开 DdmNG 官方服务页面") { openOfficialWebsite("访问网站") }, menuItemLp())
+        wrap.addView(menuDialogItem(dialog, "💬", "联系客服", "打开客服入口获取帮助") { openOfficialWebsite("联系客服") }, menuItemLp())
+
+        val close = outlineButton("关闭")
+        close.setOnClickListener { dialog.dismiss() }
+        val closeLp = LinearLayout.LayoutParams(-1, dp(48))
+        closeLp.topMargin = dp(8)
+        wrap.addView(close, closeLp)
+
+        dialog.setContentView(wrap)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.show()
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.90f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+    }
+
+    private fun menuDialogItem(dialog: android.app.Dialog, icon: String, titleText: String, descText: String, action: () -> Unit): LinearLayout {
+        val item = LinearLayout(this)
+        item.orientation = LinearLayout.HORIZONTAL
+        item.gravity = Gravity.CENTER_VERTICAL
+        item.setPadding(dp(14), dp(12), dp(14), dp(12))
+        item.background = rounded(Color.argb(154, 10, 40, 86), dp(16).toFloat(), Color.argb(105, 86, 168, 245), 1)
+        item.isClickable = true
+        item.setOnClickListener {
+            dialog.dismiss()
+            action()
+        }
+
+        val ic = TextView(this)
+        ic.text = icon
+        ic.textSize = 21f
+        ic.gravity = Gravity.CENTER
+        item.addView(ic, LinearLayout.LayoutParams(dp(40), dp(42)))
+
+        val texts = LinearLayout(this)
+        texts.orientation = LinearLayout.VERTICAL
+        texts.setPadding(dp(8), 0, 0, 0)
+        item.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
+
+        val title = TextView(this)
+        title.text = titleText
+        title.setTextColor(primaryText)
+        title.textSize = 16f
+        title.typeface = Typeface.DEFAULT_BOLD
+        texts.addView(title, LinearLayout.LayoutParams(-1, -2))
+
+        val desc = TextView(this)
+        desc.text = descText
+        desc.setTextColor(secondText)
+        desc.textSize = 12f
+        desc.setPadding(0, dp(4), 0, 0)
+        texts.addView(desc, LinearLayout.LayoutParams(-1, -2))
+
+        val arrow = TextView(this)
+        arrow.text = "›"
+        arrow.setTextColor(accent)
+        arrow.textSize = 24f
+        arrow.gravity = Gravity.CENTER
+        item.addView(arrow, LinearLayout.LayoutParams(dp(28), -1))
+        return item
+    }
+
+    private fun menuItemLp(): LinearLayout.LayoutParams {
+        val lp = LinearLayout.LayoutParams(-1, -2)
+        lp.bottomMargin = dp(10)
+        return lp
     }
 
     private fun showRenewPlansDialog() {
