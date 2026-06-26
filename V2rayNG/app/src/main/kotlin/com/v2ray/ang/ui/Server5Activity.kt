@@ -98,7 +98,7 @@ class Server5Activity : BaseActivity() {
         root.addView(tv, LinearLayout.LayoutParams(-1, -2))
         val et = EditText(this)
         et.inputType = inputType
-        et.singleLine = true
+        et.setSingleLine(true)
         root.addView(et, LinearLayout.LayoutParams(-1, -2))
         return et
     }
