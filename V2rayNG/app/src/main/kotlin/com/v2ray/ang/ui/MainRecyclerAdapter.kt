@@ -120,6 +120,8 @@ class MainRecyclerAdapter(val activity: MainActivity) : RecyclerView.Adapter<Mai
                         .putExtra("isRunning", !changeable)
                 if (configType == EConfigType.VMESS) {
                     mActivity.startActivity(intent.setClass(mActivity, ServerActivity::class.java))
+                } else if (configType == EConfigType.VLESS) {
+                    mActivity.startActivity(intent.setClass(mActivity, Server5Activity::class.java))
                 } else if (configType == EConfigType.CUSTOM) {
                     mActivity.startActivity(intent.setClass(mActivity, Server2Activity::class.java))
                 } else if (configType == EConfigType.SHADOWSOCKS) {

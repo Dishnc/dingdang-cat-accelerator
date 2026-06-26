@@ -12,6 +12,7 @@ import com.v2ray.ang.AppConfig.PREF_CURR_CONFIG_NAME
 import com.v2ray.ang.AppConfig.SOCKS_PROTOCOL
 import com.v2ray.ang.AppConfig.SS_PROTOCOL
 import com.v2ray.ang.AppConfig.VMESS_PROTOCOL
+import com.v2ray.ang.AppConfig.VLESS_PROTOCOL
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.AngConfig
 import com.v2ray.ang.dto.EConfigType
@@ -80,6 +81,35 @@ object AngConfigManager {
                 }
             }
 
+            storeConfigFile()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return -1
+        }
+        return 0
+    }
+
+    /**
+     * add or edit VLESS server
+     */
+    fun addVlessServer(vmess: AngConfig.VmessBean, index: Int): Int {
+        try {
+            vmess.configVersion = 2
+            vmess.configType = EConfigType.VLESS.value
+            vmess.alterId = 0
+            if (vmess.security.isBlank()) vmess.security = "auto"
+            if (vmess.encryption.isBlank()) vmess.encryption = "none"
+            if (vmess.streamSecurity == "xtls" && vmess.flow.isBlank()) vmess.flow = "xtls-rprx-direct"
+
+            if (index >= 0) {
+                angConfig.vmess[index] = vmess
+            } else {
+                vmess.guid = Utils.getUuid()
+                angConfig.vmess.add(vmess)
+                if (angConfig.vmess.count() == 1) {
+                    angConfig.index = 0
+                }
+            }
             storeConfigFile()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -296,6 +326,12 @@ object AngConfigManager {
                 }
                 upgradeServerVersion(vmess)
                 addServer(vmess, -1)
+
+            } else if (server.startsWith(VLESS_PROTOCOL)) {
+                vmess = tryParseVless(server) ?: return R.string.toast_incorrect_protocol
+                vmess.subid = subid
+                upgradeServerVersion(vmess)
+                addVlessServer(vmess, -1)
 
             } else if (server.startsWith(SS_PROTOCOL)) {
                 var result = server.replace(SS_PROTOCOL, "")
@@ -665,6 +701,52 @@ object AngConfigManager {
     /**
      * upgrade
      */
+
+    fun tryParseVless(server: String): AngConfig.VmessBean? {
+        return try {
+            val uri = URI(server)
+            if (!uri.scheme.equals("vless", true)) return null
+            val vmess = AngConfig.VmessBean()
+            vmess.configType = EConfigType.VLESS.value
+            vmess.configVersion = 2
+            vmess.id = Utils.urlDecode(uri.userInfo ?: "").trim()
+            vmess.address = uri.host ?: ""
+            vmess.port = uri.port
+            vmess.remarks = if (uri.fragment.isNullOrBlank()) vmess.address else Utils.urlDecode(uri.fragment)
+            val params = parseQuery(uri.rawQuery ?: "")
+            vmess.network = params["type"] ?: params["network"] ?: "tcp"
+            vmess.streamSecurity = params["security"] ?: ""
+            vmess.encryption = params["encryption"] ?: "none"
+            vmess.security = "auto"
+            vmess.alterId = 0
+            vmess.flow = params["flow"] ?: ""
+            vmess.headerType = params["headerType"] ?: params["header"] ?: "none"
+            vmess.requestHost = params["host"] ?: params["sni"] ?: ""
+            vmess.path = params["path"] ?: ""
+            if (vmess.streamSecurity == "xtls" && vmess.flow.isBlank()) {
+                vmess.flow = "xtls-rprx-direct"
+            }
+            if (vmess.id.isBlank() || vmess.address.isBlank() || vmess.port <= 0) null else vmess
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private fun parseQuery(rawQuery: String): Map<String, String> {
+        val result = LinkedHashMap<String, String>()
+        if (rawQuery.isBlank()) return result
+        rawQuery.split("&").forEach { part ->
+            val idx = part.indexOf('=')
+            if (idx > 0) {
+                val key = URLDecoder.decode(part.substring(0, idx), "UTF-8")
+                val value = URLDecoder.decode(part.substring(idx + 1), "UTF-8")
+                result[key] = value
+            }
+        }
+        return result
+    }
+
     fun upgradeServerVersion(vmess: AngConfig.VmessBean): Int {
         try {
             if (vmess.configVersion == 2) {

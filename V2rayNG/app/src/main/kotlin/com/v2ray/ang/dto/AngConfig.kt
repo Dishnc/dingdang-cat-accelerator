@@ -17,6 +17,8 @@ data class AngConfig(
                          var requestHost: String = "",
                          var path: String = "",
                          var streamSecurity: String = "",
+                         var flow: String = "",
+                         var encryption: String = "none",
                          var configType: Int = 1,
                          var configVersion: Int = 1,
                          var testResult: String = "",

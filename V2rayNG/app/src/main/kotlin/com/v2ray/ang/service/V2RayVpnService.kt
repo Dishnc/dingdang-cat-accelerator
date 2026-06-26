@@ -85,45 +85,115 @@ class V2RayVpnService : VpnService(), ServiceControl {
 
         val prepare = prepare(this)
         if (prepare != null) {
+            defaultDPreference.setPrefString("ddcat_vpn_last_setup", "VpnService.prepare still requires user confirmation. params=$parameters")
             return
         }
 
-        // If the old interface has exactly the same parameters, use it!
-        // Configure a builder while parsing the parameters.
+        // Configure a builder while parsing the parameters returned by the native core.
+        // Some repackaged legacy cores report a successful outbound test but do not provide
+        // enough VPN DNS/route parameters for Android browser traffic. We keep the original
+        // behavior, but add safe IPv4 fallback route/DNS so full-device VPN traffic is actually captured.
         val builder = Builder()
         val enableLocalDns = defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
         val routingMode = defaultDPreference.getPrefString(SettingsActivity.PREF_ROUTING_MODE, "0")
+        val diag = StringBuilder()
+        var hasAddress = false
+        var hasDefaultIpv4Route = false
+        var hasDns = false
+
+        diag.append("setup called\nparams=").append(parameters).append("\n")
+        diag.append("enableLocalDns=").append(enableLocalDns)
+                .append(" routingMode=").append(routingMode)
+                .append(" remoteDns=").append(defaultDPreference.getPrefString(SettingsActivity.PREF_REMOTE_DNS, ""))
+                .append("\n")
 
         parameters.split(" ")
                 .map { it.split(",") }
+                .filter { it.isNotEmpty() && it[0].isNotEmpty() }
                 .forEach {
-                    when (it[0][0]) {
-                        'm' -> builder.setMtu(java.lang.Short.parseShort(it[1]).toInt())
-                        's' -> builder.addSearchDomain(it[1])
-                        'a' -> builder.addAddress(it[1], Integer.parseInt(it[2]))
-                        'r' -> {
-                            if (routingMode == "1" || routingMode == "3") {
-                                if (it[1] == "::") { //not very elegant, should move Vpn setting in Kotlin, simplify go code
-                                    builder.addRoute("2000::", 3)
-                                } else {
-                                    resources.getStringArray(R.array.bypass_private_ip_address).forEach { cidr ->
-                                        val addr = cidr.split('/')
-                                        builder.addRoute(addr[0], addr[1].toInt())
-                                    }
+                    try {
+                        when (it[0][0]) {
+                            'm' -> if (it.size >= 2) {
+                                builder.setMtu(java.lang.Short.parseShort(it[1]).toInt())
+                                diag.append("mtu=").append(it[1]).append("\n")
+                            }
+                            's' -> if (it.size >= 2) {
+                                builder.addSearchDomain(it[1])
+                                diag.append("search=").append(it[1]).append("\n")
+                            }
+                            'a' -> if (it.size >= 3) {
+                                builder.addAddress(it[1], Integer.parseInt(it[2]))
+                                hasAddress = true
+                                diag.append("address=").append(it[1]).append('/').append(it[2]).append("\n")
+                            }
+                            'r' -> if (it.size >= 3) {
+                                if (it[1] == "0.0.0.0" && it[2] == "0") {
+                                    hasDefaultIpv4Route = true
                                 }
-                            } else {
-                                builder.addRoute(it[1], Integer.parseInt(it[2]))
+                                if (routingMode == "1" || routingMode == "3") {
+                                    if (it[1] == "::") {
+                                        builder.addRoute("2000::", 3)
+                                    } else {
+                                        resources.getStringArray(R.array.bypass_private_ip_address).forEach { cidr ->
+                                            val addr = cidr.split('/')
+                                            builder.addRoute(addr[0], addr[1].toInt())
+                                            diag.append("bypassRoute=").append(cidr).append("\n")
+                                        }
+                                    }
+                                } else {
+                                    builder.addRoute(it[1], Integer.parseInt(it[2]))
+                                    diag.append("route=").append(it[1]).append('/').append(it[2]).append("\n")
+                                }
+                            }
+                            'd' -> if (it.size >= 2) {
+                                builder.addDnsServer(it[1])
+                                hasDns = true
+                                diag.append("dnsFromCore=").append(it[1]).append("\n")
                             }
                         }
-                        'd' -> builder.addDnsServer(it[1])
+                    } catch (e: Exception) {
+                        diag.append("parse item failed: ").append(it.joinToString(",")).append(" err=").append(e.message).append("\n")
                     }
                 }
+
+        if (!hasAddress) {
+            try {
+                builder.addAddress("10.10.10.10", 30)
+                diag.append("fallbackAddress=10.10.10.10/30\n")
+            } catch (e: Exception) {
+                diag.append("fallbackAddress failed=").append(e.message).append("\n")
+            }
+        }
+
+        if (routingMode == "0" && !hasDefaultIpv4Route) {
+            try {
+                builder.addRoute("0.0.0.0", 0)
+                hasDefaultIpv4Route = true
+                diag.append("fallbackRoute=0.0.0.0/0\n")
+            } catch (e: Exception) {
+                diag.append("fallbackRoute failed=").append(e.message).append("\n")
+            }
+        }
 
         if(!enableLocalDns) {
             Utils.getRemoteDnsServers(defaultDPreference)
                 .forEach {
-                    builder.addDnsServer(it)
+                    try {
+                        builder.addDnsServer(it)
+                        hasDns = true
+                        diag.append("dnsRemote=").append(it).append("\n")
+                    } catch (e: Exception) {
+                        diag.append("dnsRemote failed ").append(it).append(" err=").append(e.message).append("\n")
+                    }
                 }
+        }
+        if (!hasDns) {
+            try {
+                builder.addDnsServer("1.1.1.1")
+                diag.append("fallbackDns=1.1.1.1\n")
+            } catch (e: Exception) {
+                diag.append("fallbackDns failed=").append(e.message).append("\n")
+            }
         }
 
         builder.setSession(V2RayServiceManager.currentConfigName)
@@ -166,10 +236,14 @@ class V2RayVpnService : VpnService(), ServiceControl {
         // Create a new interface using the builder and save the parameters.
         try {
             mInterface = builder.establish()!!
+            diag.append("builder.establish=success\n")
+            defaultDPreference.setPrefString("ddcat_vpn_last_setup", diag.toString())
         } catch (e: Exception) {
-            // non-nullable lateinit var
+            diag.append("builder.establish=failed err=").append(e.message).append("\n")
+            defaultDPreference.setPrefString("ddcat_vpn_last_setup", diag.toString())
             e.printStackTrace()
             stopV2Ray()
+            return
         }
 
         sendFd()

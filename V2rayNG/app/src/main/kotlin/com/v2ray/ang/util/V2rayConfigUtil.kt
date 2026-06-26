@@ -69,6 +69,7 @@ object V2rayConfigUtil {
         }
         v2rayConfig?.outbounds?.forEach { outbound ->
             if (outbound.protocol.equals(EConfigType.VMESS.name, true) ||
+                    outbound.protocol.equals(EConfigType.VLESS.name, true) ||
                     outbound.protocol.equals(EConfigType.SHADOWSOCKS.name, true) ||
                     outbound.protocol.equals(EConfigType.SOCKS.name, true)) {
                 return outbound
@@ -183,7 +184,7 @@ object V2rayConfigUtil {
                 outbound.protocol = configType.name.toLowerCase()
             }
             when (configType) {
-                EConfigType.VMESS -> {
+                EConfigType.VMESS, EConfigType.VLESS -> {
                     outbound.settings?.servers = null
 
                     val vnext = v2rayConfig.outbounds[0].settings?.vnext?.get(0)
@@ -191,13 +192,17 @@ object V2rayConfigUtil {
                     vnext?.port = vmess.port
                     val user = vnext?.users?.get(0)
                     user?.id = vmess.id
-                    user?.alterId = vmess.alterId
-                    user?.security = vmess.security
+                    user?.alterId = if (configType == EConfigType.VLESS) 0 else vmess.alterId
+                    user?.security = if (configType == EConfigType.VLESS) "auto" else vmess.security
                     user?.level = 8
+                    if (configType == EConfigType.VLESS) {
+                        user?.encryption = if (vmess.encryption.isBlank()) "none" else vmess.encryption
+                        user?.flow = if (vmess.flow.isBlank() && vmess.streamSecurity == "xtls") "xtls-rprx-direct" else vmess.flow
+                    }
 
                     //Mux
-                    val muxEnabled = false//app.defaultDPreference.getPrefBoolean(SettingsActivity.PREF_MUX_ENABLED, false)
-                    outbound.mux?.enabled = muxEnabled
+                    outbound.mux?.enabled = false
+                    outbound.mux?.concurrency = -1
 
                     //远程服务器底层传输配置
                     outbound.streamSettings = boundStreamSettings(vmess)
@@ -257,6 +262,12 @@ object V2rayConfigUtil {
             //远程服务器底层传输配置
             streamSettings.network = vmess.network
             streamSettings.security = vmess.streamSecurity
+            if (streamSettings.security == "xtls") {
+                val xtlsSettings = V2rayConfig.OutboundBean.StreamSettingsBean.TlsSettingsBean()
+                xtlsSettings.allowInsecure = true
+                xtlsSettings.serverName = vmess.requestHost.trim()
+                streamSettings.xtlsSettings = xtlsSettings
+            }
 
             //streamSettings
             when (streamSettings.network) {
@@ -609,7 +620,9 @@ object V2rayConfigUtil {
                 servers.add(it)
             }
 
-            v2rayConfig.dns = V2rayConfig.DnsBean(servers = servers)
+            val hosts = mutableMapOf<String, String>()
+            hosts["domain:googleapis.cn"] = "googleapis.com"
+            v2rayConfig.dns = V2rayConfig.DnsBean(servers = servers, hosts = hosts)
         } catch (e: Exception) {
             e.printStackTrace()
             return false

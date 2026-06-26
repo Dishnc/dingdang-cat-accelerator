@@ -192,4 +192,7 @@
         <item>仅代理</item>
     </string-array>
 
+    <string name="menu_item_import_config_manually_vless">Type manually[VLESS]</string>
+    <string name="server_lab_flow">Flow</string>
+    <string name="server_lab_encryption">Encryption</string>
 </resources>

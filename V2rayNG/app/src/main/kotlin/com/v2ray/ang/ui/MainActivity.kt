@@ -188,6 +188,11 @@ class MainActivity : BaseActivity(), NavigationView.OnNavigationItemSelectedList
             adapter.updateConfigList()
             true
         }
+        R.id.import_manually_vless -> {
+            startActivity(getOptionIntent().setClass(this, Server5Activity::class.java))
+            adapter.updateConfigList()
+            true
+        }
         R.id.import_manually_ss -> {
             startActivity(getOptionIntent().setClass(this, Server3Activity::class.java))
             adapter.updateConfigList()

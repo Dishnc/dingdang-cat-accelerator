@@ -16,6 +16,7 @@ object AppConfig {
     const val PREF_MODE = "pref_mode"
 
     const val VMESS_PROTOCOL: String = "vmess://"
+    const val VLESS_PROTOCOL: String = "vless://"
     const val SS_PROTOCOL: String = "ss://"
     const val SOCKS_PROTOCOL: String = "socks://"
     const val BROADCAST_ACTION_SERVICE = "com.v2ray.ang.action.service"

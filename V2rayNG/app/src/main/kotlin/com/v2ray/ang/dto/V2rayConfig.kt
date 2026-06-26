@@ -47,9 +47,11 @@ data class V2rayConfig(
                                  var users: List<UsersBean>) {
 
                 data class UsersBean(var id: String,
-                                     var alterId: Int,
-                                     var security: String,
-                                     var level: Int)
+                                     var alterId: Int = 0,
+                                     var security: String = "auto",
+                                     var level: Int = 8,
+                                     var encryption: String = "none",
+                                     var flow: String = "")
             }
 
             data class ServersBean(var address: String,
@@ -69,7 +71,8 @@ data class V2rayConfig(
                                       var wsSettings: WsSettingsBean?,
                                       var httpSettings: HttpSettingsBean?,
                                       var tlsSettings: TlsSettingsBean?,
-                                      var quicSettings: QuicSettingBean?
+                                      var quicSettings: QuicSettingBean?,
+                                      var xtlsSettings: TlsSettingsBean? = null
         ) {
 
             data class TcpSettingsBean(var header: HeaderBean = HeaderBean()) {
@@ -107,10 +110,10 @@ data class V2rayConfig(
             }
         }
 
-        data class MuxBean(var enabled: Boolean)
+        data class MuxBean(var enabled: Boolean, var concurrency: Int = -1)
 
         fun getServerAddress(): String? {
-            if (protocol.equals(EConfigType.VMESS.name.toLowerCase())) {
+            if (protocol.equals(EConfigType.VMESS.name.toLowerCase()) || protocol.equals(EConfigType.VLESS.name.toLowerCase())) {
                 return settings?.vnext?.get(0)?.address
             } else if (protocol.equals(EConfigType.SHADOWSOCKS.name.toLowerCase()) || protocol.equals(EConfigType.SOCKS.name.toLowerCase())) {
                 return settings?.servers?.get(0)?.address
@@ -119,7 +122,7 @@ data class V2rayConfig(
         }
 
         fun getServerPort(): Int? {
-            if (protocol.equals(EConfigType.VMESS.name.toLowerCase())) {
+            if (protocol.equals(EConfigType.VMESS.name.toLowerCase()) || protocol.equals(EConfigType.VLESS.name.toLowerCase())) {
                 return settings?.vnext?.get(0)?.port
             } else if (protocol.equals(EConfigType.SHADOWSOCKS.name.toLowerCase()) || protocol.equals(EConfigType.SOCKS.name.toLowerCase())) {
                 return settings?.servers?.get(0)?.port

@@ -52,6 +52,7 @@
     <string-array name="streamsecuritys" translatable="false">
         <item></item>
         <item>tls</item>
+        <item>xtls</item>
     </string-array>
 
     <string-array name="routing_mode_value" translatable="false">

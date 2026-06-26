@@ -28,7 +28,7 @@ import java.net.URLEncoder
  * DingdangCat launcher UI.
  *
  * This activity deliberately does NOT replace the original v2rayNG runtime UI/service chain.
- * It only logs in, writes a verified CUSTOM JSON config, selects it through AngConfigManager,
+ * It only logs in, writes a first-class VLESS Legacy XTLS config, selects it through AngConfigManager,
  * and then calls the original v2rayNG 1.5.0 start flow.
  */
 class DingdangLoginActivity : AppCompatActivity() {
@@ -95,6 +95,13 @@ class DingdangLoginActivity : AppCompatActivity() {
         startButton.text = "一键加速"
         startButton.isEnabled = false
         startButton.setOnClickListener { startProxy() }
+        startButton.setOnLongClickListener {
+            val diag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "暂无 VPN setup 诊断信息")
+            val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("ddcat-vpn-diagnostic", diag))
+            toast("VPN 诊断信息已复制")
+            true
+        }
         box.addView(startButton, LinearLayout.LayoutParams(-1, -2))
 
         val openOriginal = Button(this)
@@ -148,8 +155,7 @@ class DingdangLoginActivity : AppCompatActivity() {
                     throw IllegalStateException("后端返回线路不完整：host=$host port=$port uuid=$uuid")
                 }
 
-                val json = buildLegacyJson(host, port, uuid, flow)
-                val index = storeAsOriginalCustomConfig(json, host, port, email)
+                val index = storeAsVerifiedVlessConfig(host, port, uuid, flow, email)
                 defaultDPreference.setPrefString(PREF_DDCAT_SERVICE, base)
                 defaultDPreference.setPrefString(PREF_DDCAT_EMAIL, email)
                 activeIndex = index
@@ -169,32 +175,39 @@ class DingdangLoginActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun storeAsOriginalCustomConfig(json: String, host: String, port: Int, email: String): Int {
-        // Keep the list clean to avoid old V1.0.x GUID/runtime residue interfering with original flow.
+    private fun storeAsVerifiedVlessConfig(host: String, port: Int, uuid: String, flow: String, email: String): Int {
+        // Keep the list clean to avoid old CUSTOM/V1.0.x residue interfering with the verified VLESS path.
         AngConfigManager.configs.vmess.clear()
         AngConfigManager.configs.index = -1
         AngConfigManager.storeConfigFile()
 
         val bean = AngConfig.VmessBean(
                 remarks = "叮当猫专属线路 - $email",
-                address = "",
-                port = 0,
-                id = "",
-                security = "",
-                network = "tcp"
+                address = host,
+                port = port,
+                id = uuid,
+                alterId = 0,
+                security = "auto",
+                network = "tcp",
+                headerType = "none",
+                requestHost = "",
+                path = "",
+                streamSecurity = "xtls",
+                flow = if (flow.isBlank()) "xtls-rprx-direct" else flow,
+                encryption = "none",
+                configVersion = 2
         )
-        AngConfigManager.addCustomServer(bean, -1)
+        AngConfigManager.addVlessServer(bean, -1)
         val index = AngConfigManager.configs.vmess.size - 1
-        val guid = AngConfigManager.configs.vmess[index].guid
-        defaultDPreference.setPrefString(AppConfig.ANG_CONFIG + guid, json)
         AngConfigManager.setActiveServer(index)
-        // Use original parser to write PREF_CURR_CONFIG / DOMAIN / TAGS.
-        AngConfigManager.genStoreV2rayConfig(index)
-        defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "$host:$port")
         defaultDPreference.setPrefString(AppConfig.PREF_MODE, "VPN")
         defaultDPreference.setPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
         defaultDPreference.setPrefBoolean(SettingsActivity.PREF_FORWARD_IPV6, false)
         defaultDPreference.setPrefString(SettingsActivity.PREF_REMOTE_DNS, "1.1.1.1")
+        defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_MODE, "0")
+        // Let original v2rayNG config generator write PREF_CURR_CONFIG / DOMAIN / TAGS using VLESS type.
+        AngConfigManager.genStoreV2rayConfig(index)
+        defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "$host:$port")
         return index
     }
 
