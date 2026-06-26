@@ -29,6 +29,9 @@ import android.view.ViewGroup
 import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
 import android.view.animation.LinearInterpolator
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.*
 import com.google.gson.GsonBuilder
 import com.v2ray.ang.AppConfig
@@ -72,6 +75,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         private const val QUARTER_PLAN_URL = "https://buy.aisuper.top/buy/15"
         private const val YEAR_PLAN_URL = "https://buy.aisuper.top/buy/16"
         private const val APP_UPDATE_API_PATH = "/api/app/update"
+        private const val APP_SUPPORT_PATH = "/app-support"
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -353,7 +357,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         val support = actionButton("联系客服")
         renew.setOnClickListener { showRenewPlansDialog() }
         order.setOnClickListener { openOfficialWebsite("访问网站") }
-        support.setOnClickListener { openOfficialWebsite("联系客服") }
+        support.setOnClickListener { openInAppSupportChat() }
         actionsRow.addView(renew, LinearLayout.LayoutParams(0, -1, 1f))
         val p2 = LinearLayout.LayoutParams(0, -1, 1f); p2.leftMargin = dp(8); actionsRow.addView(order, p2)
         val p3 = LinearLayout.LayoutParams(0, -1, 1f); p3.leftMargin = dp(8); actionsRow.addView(support, p3)
@@ -836,7 +840,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         wrap.addView(menuDialogItem(dialog, "💎", "网络续费", "选择套餐并完成续费") { showRenewPlansDialog() }, menuItemLp())
         wrap.addView(menuDialogItem(dialog, "⬆", "检查更新", "检查是否有新版本可用") { checkForUpdates(true) }, menuItemLp())
         wrap.addView(menuDialogItem(dialog, "🌐", "访问网站", "打开 DdmNG 官方服务页面") { openOfficialWebsite("访问网站") }, menuItemLp())
-        wrap.addView(menuDialogItem(dialog, "💬", "联系客服", "打开客服入口获取帮助") { openOfficialWebsite("联系客服") }, menuItemLp())
+        wrap.addView(menuDialogItem(dialog, "💬", "联系客服", "打开 APP 内在线客服聊天窗口") { openInAppSupportChat() }, menuItemLp())
 
         val close = outlineButton("关闭")
         close.setOnClickListener { dialog.dismiss() }
@@ -997,6 +1001,118 @@ class DingdangLoginActivity : AppCompatActivity() {
 
     private fun openOfficialWebsite(actionName: String) {
         openUrl(actionName, DEFAULT_SERVICE_BASE.trim().trimEnd('/'))
+    }
+
+    private fun buildAppSupportUrl(): String {
+        val base = DEFAULT_SERVICE_BASE.trim().trimEnd('/') + APP_SUPPORT_PATH
+        val email = defaultDPreference.getPrefString(PREF_DDCAT_EMAIL, "").trim()
+        val params = ArrayList<String>()
+        params.add("from=app")
+        params.add("source=ddmng")
+        params.add("abi=arm64-v8a")
+        params.add("package_name=" + URLEncoder.encode(packageName, "UTF-8"))
+        params.add("version_name=" + URLEncoder.encode(BuildConfig.VERSION_NAME, "UTF-8"))
+        params.add("version_code=" + BuildConfig.VERSION_CODE)
+        if (email.isNotBlank()) {
+            params.add("email=" + URLEncoder.encode(email, "UTF-8"))
+        }
+        params.add("_t=" + System.currentTimeMillis())
+        return base + "?" + params.joinToString("&")
+    }
+
+    private fun openInAppSupportChat() {
+        try {
+            hideKeyboard()
+            status("联系客服：正在打开在线客服聊天窗口。")
+
+            val dialog = android.app.Dialog(this)
+            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+            val wrap = LinearLayout(this)
+            wrap.orientation = LinearLayout.VERTICAL
+            wrap.background = rounded(Color.rgb(5, 18, 43), dp(18).toFloat(), Color.argb(120, 80, 170, 255), 1)
+
+            val head = LinearLayout(this)
+            head.orientation = LinearLayout.HORIZONTAL
+            head.gravity = Gravity.CENTER_VERTICAL
+            head.setPadding(dp(14), dp(10), dp(10), dp(10))
+            head.background = rounded(Color.rgb(7, 31, 68), dp(18).toFloat(), Color.TRANSPARENT, 0)
+            wrap.addView(head, LinearLayout.LayoutParams(-1, dp(58)))
+
+            val title = TextView(this)
+            title.text = "💬 DdmNG 在线客服"
+            title.setTextColor(primaryText)
+            title.textSize = 16f
+            title.typeface = Typeface.DEFAULT_BOLD
+            head.addView(title, LinearLayout.LayoutParams(0, -1, 1f))
+
+            val close = TextView(this)
+            close.text = "关闭"
+            close.gravity = Gravity.CENTER
+            close.setTextColor(primaryText)
+            close.textSize = 13f
+            close.typeface = Typeface.DEFAULT_BOLD
+            close.background = rounded(Color.argb(120, 15, 58, 115), dp(14).toFloat(), Color.argb(90, 105, 190, 255), 1)
+            head.addView(close, LinearLayout.LayoutParams(dp(72), dp(38)))
+
+            val progress = ProgressBar(this)
+            val progressLp = LinearLayout.LayoutParams(-1, dp(3))
+            wrap.addView(progress, progressLp)
+
+            val webView = WebView(this)
+            webView.setBackgroundColor(Color.rgb(6, 20, 47))
+            webView.settings.javaScriptEnabled = true
+            webView.settings.domStorageEnabled = true
+            webView.settings.databaseEnabled = true
+            webView.settings.loadWithOverviewMode = true
+            webView.settings.useWideViewPort = true
+            webView.settings.setSupportZoom(false)
+            try {
+                webView.settings.userAgentString = webView.settings.userAgentString + " DdmNGApp/" + BuildConfig.VERSION_NAME
+            } catch (ignored: Throwable) {
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && BuildConfig.DEBUG) {
+                try { WebView.setWebContentsDebuggingEnabled(true) } catch (ignored: Throwable) {}
+            }
+
+            webView.webChromeClient = object : WebChromeClient() {
+                override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                    super.onProgressChanged(view, newProgress)
+                    progress.visibility = if (newProgress >= 95) View.GONE else View.VISIBLE
+                }
+            }
+            webView.webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                    val target = url ?: return false
+                    return if (target.startsWith(DEFAULT_SERVICE_BASE.trim().trimEnd('/'))) {
+                        false
+                    } else {
+                        try { Utils.openUri(this@DingdangLoginActivity, target) } catch (ignored: Throwable) {}
+                        true
+                    }
+                }
+            }
+
+            wrap.addView(webView, LinearLayout.LayoutParams(-1, 0, 1f))
+            close.setOnClickListener { dialog.dismiss() }
+            dialog.setOnDismissListener {
+                try {
+                    webView.stopLoading()
+                    webView.loadUrl("about:blank")
+                    webView.destroy()
+                } catch (ignored: Throwable) {
+                }
+            }
+
+            dialog.setContentView(wrap)
+            dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            dialog.show()
+            dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.96f).toInt(), (resources.displayMetrics.heightPixels * 0.90f).toInt())
+            webView.loadUrl(buildAppSupportUrl())
+        } catch (e: Throwable) {
+            toast("客服窗口打开失败，正在尝试打开网页客服")
+            openUrl("联系客服", buildAppSupportUrl())
+        }
     }
 
     private fun openUrl(actionName: String, url: String) {
