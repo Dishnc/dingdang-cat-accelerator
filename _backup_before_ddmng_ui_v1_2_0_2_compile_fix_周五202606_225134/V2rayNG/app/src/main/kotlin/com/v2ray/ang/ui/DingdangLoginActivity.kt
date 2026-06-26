@@ -102,7 +102,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         val box = LinearLayout(this)
         box.orientation = LinearLayout.VERTICAL
         box.setPadding(dp(18), dp(16), dp(18), dp(18))
-        scroll.addView(box, FrameLayout.LayoutParams(-1, -2))
+        scroll.addView(box, ScrollView.LayoutParams(-1, -2))
 
         val top = LinearLayout(this)
         top.orientation = LinearLayout.HORIZONTAL
@@ -115,7 +115,7 @@ class DingdangLoginActivity : AppCompatActivity() {
 
         val topTitle = TextView(this)
         topTitle.text = "DdmNG"
-        topTitle.setTextColor(primaryText)
+        topTitle.textColor = primaryText
         topTitle.textSize = 22f
         topTitle.gravity = Gravity.CENTER
         topTitle.typeface = Typeface.DEFAULT_BOLD
@@ -136,7 +136,7 @@ class DingdangLoginActivity : AppCompatActivity() {
 
         val heroTitle = TextView(this)
         heroTitle.text = "DdmNG"
-        heroTitle.setTextColor(accent)
+        heroTitle.textColor = accent
         heroTitle.textSize = 34f
         heroTitle.gravity = Gravity.CENTER
         heroTitle.typeface = Typeface.DEFAULT_BOLD
@@ -144,7 +144,7 @@ class DingdangLoginActivity : AppCompatActivity() {
 
         val heroSub = TextView(this)
         heroSub.text = "安全 · 稳定 · 高效"
-        heroSub.setTextColor(Color.rgb(173, 190, 215))
+        heroSub.textColor = Color.rgb(173, 190, 215)
         heroSub.textSize = 17f
         heroSub.gravity = Gravity.CENTER
         heroSub.setPadding(0, dp(4), 0, dp(16))
@@ -192,14 +192,14 @@ class DingdangLoginActivity : AppCompatActivity() {
         connHeader.addView(sectionTitle("▮", "连接状态"), LinearLayout.LayoutParams(0, -2, 1f))
         connectionBadge = TextView(this)
         connectionBadge.text = "● 未连接"
-        connectionBadge.setTextColor(Color.rgb(64, 232, 143))
+        connectionBadge.textColor = Color.rgb(64, 232, 143)
         connectionBadge.textSize = 14f
         connectionBadge.gravity = Gravity.RIGHT or Gravity.CENTER_VERTICAL
         connHeader.addView(connectionBadge, LinearLayout.LayoutParams(dp(110), -2))
 
         connectionSubText = TextView(this)
         connectionSubText.text = "当前未连接到任何服务"
-        connectionSubText.setTextColor(secondText)
+        connectionSubText.textColor = secondText
         connectionSubText.textSize = 13f
         connectionSubText.setPadding(0, dp(12), 0, dp(16))
         connCard.addView(connectionSubText, LinearLayout.LayoutParams(-1, -2))
@@ -240,7 +240,7 @@ class DingdangLoginActivity : AppCompatActivity() {
 
         statusText = TextView(this)
         statusText.text = "输入邮箱后即可自动查询账号并准备专属线路。"
-        statusText.setTextColor(Color.rgb(126, 151, 184))
+        statusText.textColor = Color.rgb(126, 151, 184)
         statusText.textSize = 12f
         statusText.gravity = Gravity.CENTER
         statusText.setPadding(0, dp(16), 0, dp(8))
@@ -558,12 +558,12 @@ class DingdangLoginActivity : AppCompatActivity() {
         val ic = TextView(this)
         ic.text = icon
         ic.textSize = 18f
-        ic.setTextColor(accent)
+        ic.textColor = accent
         ic.gravity = Gravity.CENTER
         row.addView(ic, LinearLayout.LayoutParams(dp(32), dp(30)))
         val tv = TextView(this)
         tv.text = text
-        tv.setTextColor(accent)
+        tv.textColor = accent
         tv.textSize = 17f
         tv.typeface = Typeface.DEFAULT_BOLD
         row.addView(tv, LinearLayout.LayoutParams(0, -2, 1f))
@@ -578,12 +578,12 @@ class DingdangLoginActivity : AppCompatActivity() {
         parent.addView(line, LinearLayout.LayoutParams(-1, -2))
         val l = TextView(this)
         l.text = label
-        l.setTextColor(Color.rgb(198, 216, 238))
+        l.textColor = Color.rgb(198, 216, 238)
         l.textSize = 14f
         line.addView(l, LinearLayout.LayoutParams(dp(105), -2))
         val r = TextView(this)
         r.text = value
-        r.setTextColor(valueColor)
+        r.textColor = valueColor
         r.textSize = 14f
         r.gravity = Gravity.RIGHT
         r.maxLines = 1
@@ -597,7 +597,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     private fun primaryButton(text: String): TextView {
         val b = TextView(this)
         b.text = text
-        b.setTextColor(Color.WHITE)
+        b.textColor = Color.WHITE
         b.textSize = 16f
         b.typeface = Typeface.DEFAULT_BOLD
         b.gravity = Gravity.CENTER
@@ -610,7 +610,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     private fun outlineButton(text: String): TextView {
         val b = TextView(this)
         b.text = text
-        b.setTextColor(Color.rgb(111, 228, 250))
+        b.textColor = Color.rgb(111, 228, 250)
         b.textSize = 16f
         b.typeface = Typeface.DEFAULT_BOLD
         b.gravity = Gravity.CENTER
@@ -622,7 +622,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     private fun actionButton(text: String): TextView {
         val b = TextView(this)
         b.text = text + "  ›"
-        b.setTextColor(primaryText)
+        b.textColor = primaryText
         b.textSize = 14f
         b.typeface = Typeface.DEFAULT_BOLD
         b.gravity = Gravity.CENTER
@@ -634,7 +634,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     private fun smallTopButton(text: String): TextView {
         val tv = TextView(this)
         tv.text = text
-        tv.setTextColor(Color.WHITE)
+        tv.textColor = Color.WHITE
         tv.textSize = 27f
         tv.gravity = Gravity.CENTER
         tv.isClickable = true
