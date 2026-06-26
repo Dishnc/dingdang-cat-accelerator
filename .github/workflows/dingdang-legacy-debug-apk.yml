@@ -1,4 +1,4 @@
-name: DdmNG Legacy XTLS V1.2.0 ARM64 APK
+name: DdmNG Legacy XTLS ARM64 Stable Release APK Auto Publish
 
 on:
   workflow_dispatch:
@@ -11,8 +11,8 @@ env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
-  build-debug-apk:
-    name: Build DdmNG V1.2.0 UI ARM64 APK
+  build-release-apk:
+    name: Build signed DdmNG ARM64 APK
     runs-on: ubuntu-22.04
 
     steps:
@@ -47,6 +47,34 @@ jobs:
           distribution: temurin
           java-version: 8
 
+      - name: Validate signing secrets
+        env:
+          DDMNG_KEYSTORE_BASE64: ${{ secrets.DDMNG_KEYSTORE_BASE64 }}
+          DDMNG_KEYSTORE_PASSWORD: ${{ secrets.DDMNG_KEYSTORE_PASSWORD }}
+          DDMNG_KEY_ALIAS: ${{ secrets.DDMNG_KEY_ALIAS }}
+          DDMNG_KEY_PASSWORD: ${{ secrets.DDMNG_KEY_PASSWORD }}
+        run: |
+          set -e
+          missing=0
+          for v in DDMNG_KEYSTORE_BASE64 DDMNG_KEYSTORE_PASSWORD DDMNG_KEY_ALIAS DDMNG_KEY_PASSWORD; do
+            if [ -z "${!v}" ]; then
+              echo "ERROR: GitHub Secret $v is not configured."
+              missing=1
+            fi
+          done
+          if [ "$missing" = "1" ]; then
+            echo "Please create a fixed release keystore and add the four signing secrets first."
+            exit 1
+          fi
+
+      - name: Materialize release keystore
+        env:
+          DDMNG_KEYSTORE_BASE64: ${{ secrets.DDMNG_KEYSTORE_BASE64 }}
+        run: |
+          set -e
+          printf '%s' "$DDMNG_KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/ddmng-release.jks"
+          ls -lh "$GITHUB_WORKSPACE/ddmng-release.jks"
+
       - name: Materialize exact tun2socks before build
         run: |
           set -e
@@ -63,25 +91,33 @@ jobs:
           sha256sum V2rayNG/app/src/main/jniLibs/arm64-v8a/libtun2socks.so
           file V2rayNG/app/src/main/jniLibs/arm64-v8a/libtun2socks.so || true
 
-      - name: Build Debug APK
+      - name: Build signed Release APK
+        env:
+          DDMNG_KEYSTORE_FILE: ${{ github.workspace }}/ddmng-release.jks
+          DDMNG_KEYSTORE_PASSWORD: ${{ secrets.DDMNG_KEYSTORE_PASSWORD }}
+          DDMNG_KEY_ALIAS: ${{ secrets.DDMNG_KEY_ALIAS }}
+          DDMNG_KEY_PASSWORD: ${{ secrets.DDMNG_KEY_PASSWORD }}
         run: |
           set -e
           cd "$GITHUB_WORKSPACE/V2rayNG"
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
-          ./gradlew --no-daemon clean assembleDebug --stacktrace --info
+          ./gradlew --no-daemon clean assembleRelease --stacktrace --info
 
       - name: Locate APK files
         if: always()
         run: |
           find "$GITHUB_WORKSPACE/V2rayNG" -name "*.apk" -type f -print || true
 
-      - name: Verify tun2socks inside APK
+      - name: Verify signed APK and native runtime
         run: |
           set -e
-          APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*arm64-v8a*.apk" -type f | head -n 1)
+          APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*arm64-v8a*release*.apk" -type f | head -n 1)
           if [ -z "$APK_FILE" ]; then
-            echo "No arm64-v8a APK found"
+            APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*arm64-v8a*.apk" -type f | head -n 1)
+          fi
+          if [ -z "$APK_FILE" ]; then
+            echo "No arm64-v8a release APK found"
             exit 1
           fi
           echo "Checking APK: $APK_FILE"
@@ -90,23 +126,99 @@ jobs:
             echo "ERROR: libtun2socks.so is not packaged in APK"
             exit 1
           fi
+          APKSIGNER="$ANDROID_HOME/build-tools/30.0.2/apksigner"
+          "$APKSIGNER" verify --verbose "$APK_FILE"
+
+      - name: Read APP version metadata
+        id: app_version
+        run: |
+          set -e
+          GRADLE_FILE="$GITHUB_WORKSPACE/V2rayNG/app/build.gradle"
+          VERSION_CODE=$(grep -E "^[[:space:]]*versionCode[[:space:]]+[0-9]+" "$GRADLE_FILE" | head -n 1 | sed -E 's/.*versionCode[[:space:]]+([0-9]+).*/\1/')
+          VERSION_NAME=$(grep -E "^[[:space:]]*versionName[[:space:]]+\"" "$GRADLE_FILE" | head -n 1 | sed -E 's/.*versionName[[:space:]]+\"([^\"]+)\".*/\1/')
+          if [ -z "$VERSION_CODE" ]; then VERSION_CODE="0"; fi
+          if [ -z "$VERSION_NAME" ]; then VERSION_NAME="unknown"; fi
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "APP versionName=$VERSION_NAME versionCode=$VERSION_CODE"
 
       - name: Prepare ARM64 APK artifact
         run: |
           set -e
           mkdir -p "$GITHUB_WORKSPACE/artifact"
-          APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*arm64-v8a*.apk" -type f | head -n 1)
+          APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*arm64-v8a*release*.apk" -type f | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*arm64-v8a*.apk" -type f | head -n 1)
+          fi
           if [ -z "$APK_FILE" ]; then
             echo "No arm64-v8a APK file found. Build output tree:"
             find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs" -maxdepth 6 -type f -print || true
             exit 1
           fi
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/artifact/DdmNG_V1.2.0_LegacyXTLS_arm64-v8a.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/artifact/DdmNG_${{ steps.app_version.outputs.version_name }}_StableSigned_LegacyXTLS_arm64-v8a.apk"
           ls -la "$GITHUB_WORKSPACE/artifact"
 
       - name: Upload ARM64 DdmNG APK
         uses: actions/upload-artifact@v4
         with:
-          name: DdmNG_V1_2_0_LegacyXTLS_arm64_v8a_apk
-          path: artifact/DdmNG_V1.2.0_LegacyXTLS_arm64-v8a.apk
+          name: DdmNG_${{ steps.app_version.outputs.version_name }}_StableSigned_LegacyXTLS_arm64_v8a_apk
+          path: artifact/*.apk
           if-no-files-found: error
+
+      - name: Publish APK to x-ui App Update Center
+        if: success()
+        env:
+          DDMNG_APP_UPDATE_TOKEN: ${{ secrets.DDMNG_APP_UPDATE_TOKEN }}
+          DDMNG_APP_UPDATE_UPLOAD_URL: ${{ secrets.DDMNG_APP_UPDATE_UPLOAD_URL }}
+          DDMNG_APP_FORCE_UPDATE: ${{ secrets.DDMNG_APP_FORCE_UPDATE }}
+          DDMNG_APP_MIN_SUPPORTED_VERSION_CODE: ${{ secrets.DDMNG_APP_MIN_SUPPORTED_VERSION_CODE }}
+        run: |
+          set -e
+          if [ -z "$DDMNG_APP_UPDATE_TOKEN" ]; then
+            echo "DDMNG_APP_UPDATE_TOKEN is not configured. Skip automatic upload to x-ui."
+            exit 0
+          fi
+
+          UPLOAD_URL="${DDMNG_APP_UPDATE_UPLOAD_URL:-https://buy.aisuper.top/api/app/ci-upload}"
+          FORCE_UPDATE="${DDMNG_APP_FORCE_UPDATE:-false}"
+          MIN_SUPPORTED_VERSION_CODE="${DDMNG_APP_MIN_SUPPORTED_VERSION_CODE:-0}"
+          APK_FILE=$(find "$GITHUB_WORKSPACE/artifact" -name "*.apk" -type f | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "No APK found in artifact folder"
+            exit 1
+          fi
+
+          VERSION_NAME="${{ steps.app_version.outputs.version_name }}"
+          VERSION_CODE="${{ steps.app_version.outputs.version_code }}"
+          TITLE="发现新版本 V${VERSION_NAME}"
+          ARTIFACT_NAME=$(basename "$APK_FILE")
+
+          CURL_ARGS=(
+            --fail --show-error --silent
+            -X POST "$UPLOAD_URL"
+            -H "X-CI-TOKEN: $DDMNG_APP_UPDATE_TOKEN"
+            -F "apk=@${APK_FILE}"
+            -F "version_name=${VERSION_NAME}"
+            -F "version_code=${VERSION_CODE}"
+            -F "min_supported_version_code=${MIN_SUPPORTED_VERSION_CODE}"
+            -F "force_update=${FORCE_UPDATE}"
+            -F "title=${TITLE}"
+            -F "github_run_id=${{ github.run_id }}"
+            -F "git_sha=${{ github.sha }}"
+            -F "github_actor=${{ github.actor }}"
+            -F "github_workflow=${{ github.workflow }}"
+            -F "artifact_name=${ARTIFACT_NAME}"
+            -F "signing_mode=stable-release-keystore"
+          )
+
+          if [ -f "$GITHUB_WORKSPACE/RELEASE_NOTES.txt" ]; then
+            echo "Using RELEASE_NOTES.txt as changelog"
+            CURL_ARGS+=( -F "release_notes=@${GITHUB_WORKSPACE}/RELEASE_NOTES.txt;type=text/plain" )
+          else
+            CURL_ARGS+=( -F "changelog=升级到 V${VERSION_NAME}，建议所有用户更新到最新版本。" )
+          fi
+
+          echo "Uploading APK to x-ui App Update Center: $UPLOAD_URL"
+          curl "${CURL_ARGS[@]}"
+          echo
+          echo "APK auto publish finished."
