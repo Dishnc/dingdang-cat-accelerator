@@ -100,8 +100,10 @@ object V2RayServiceManager {
 
         override fun setup(s: String): Long {
             val serviceControl = serviceControl?.get() ?: return -1
-            //Logger.d(s)
             return try {
+                val service = serviceControl.getService()
+                service.defaultDPreference.setPrefString("ddcat_service_last_start",
+                        service.defaultDPreference.getPrefString("ddcat_service_last_start", "") + "callback setup received paramsLen=" + s.length + "\n")
                 serviceControl.startService(s)
                 lastQueryTime = System.currentTimeMillis()
                 startSpeedNotification()
@@ -128,18 +130,35 @@ object V2RayServiceManager {
                 Log.d(service.packageName, e.toString())
             }
 
-            v2rayPoint.configureFileContent = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
-            v2rayPoint.enableLocalDNS = service.defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
-            v2rayPoint.forwardIpv6 = service.defaultDPreference.getPrefBoolean(SettingsActivity.PREF_FORWARD_IPV6, false)
-            v2rayPoint.domainName = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "")
-            v2rayPoint.proxyOnly = service.defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN") != "VPN"
+            val cfg = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
+            val domain = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "")
             currentConfigName = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_NAME, "NG")
+            val diag = StringBuilder()
+            diag.append("startV2rayPoint entered\n")
+                    .append("mode=").append(service.defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN")).append("\n")
+                    .append("configLen=").append(cfg.length).append("\n")
+                    .append("domain=").append(domain).append("\n")
+                    .append("name=").append(currentConfigName).append("\n")
+
+            v2rayPoint.configureFileContent = cfg
+            // Force full-device VPN capture. Connection test can succeed even when browser traffic is not captured
+            // if proxyOnly or local DNS remains enabled from old preferences.
+            v2rayPoint.enableLocalDNS = false
+            v2rayPoint.forwardIpv6 = false
+            v2rayPoint.domainName = domain
+            v2rayPoint.proxyOnly = false
+            diag.append("enableLocalDNS=false\nforwardIpv6=false\nproxyOnly=false\n")
 
             try {
+                service.defaultDPreference.setPrefString("ddcat_service_last_start", diag.append("before runLoop\n").toString())
                 v2rayPoint.runLoop()
+                diag.append("after runLoop\n")
             } catch (e: Exception) {
+                diag.append("runLoop exception=").append(e.toString()).append("\n")
                 Log.d(service.packageName, e.toString())
             }
+            diag.append("isRunning=").append(v2rayPoint.isRunning).append("\n")
+            service.defaultDPreference.setPrefString("ddcat_service_last_start", diag.toString())
 
             if (v2rayPoint.isRunning) {
                 MessageUtil.sendMsg2UI(service, AppConfig.MSG_STATE_START_SUCCESS, "")

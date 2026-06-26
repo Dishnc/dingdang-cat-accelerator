@@ -8,6 +8,7 @@ import android.net.*
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.StrictMode
+import android.system.OsConstants
 import android.support.annotation.RequiresApi
 import android.util.Log
 import com.v2ray.ang.R
@@ -94,12 +95,21 @@ class V2RayVpnService : VpnService(), ServiceControl {
         // enough VPN DNS/route parameters for Android browser traffic. We keep the original
         // behavior, but add safe IPv4 fallback route/DNS so full-device VPN traffic is actually captured.
         val builder = Builder()
-        val enableLocalDns = defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
-        val routingMode = defaultDPreference.getPrefString(SettingsActivity.PREF_ROUTING_MODE, "0")
+        val enableLocalDns = false
+        val routingMode = "0"
         val diag = StringBuilder()
         var hasAddress = false
         var hasDefaultIpv4Route = false
         var hasDns = false
+
+        try {
+            // Force IPv4 family for full-device VPN capture. Some Android builds will not route DNS reliably
+            // unless the VPN declares supported address families explicitly.
+            builder.allowFamily(OsConstants.AF_INET)
+            diag.append("allowFamily=AF_INET\n")
+        } catch (e: Exception) {
+            diag.append("allowFamily failed=").append(e.message).append("\n")
+        }
 
         diag.append("setup called\nparams=").append(parameters).append("\n")
         diag.append("enableLocalDns=").append(enableLocalDns)
@@ -198,20 +208,11 @@ class V2RayVpnService : VpnService(), ServiceControl {
 
         builder.setSession(V2RayServiceManager.currentConfigName)
 
+        // DingdangCat forces full-device VPN mode here. Do not apply per-app allow/deny lists,
+        // otherwise the browser may be outside the VPN and DNS will still fail.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP &&
                 defaultDPreference.getPrefBoolean(SettingsActivity.PREF_PER_APP_PROXY, false)) {
-            val apps = defaultDPreference.getPrefStringSet(PerAppProxyActivity.PREF_PER_APP_PROXY_SET, null)
-            val bypassApps = defaultDPreference.getPrefBoolean(PerAppProxyActivity.PREF_BYPASS_APPS, false)
-            apps?.forEach {
-                try {
-                    if (bypassApps)
-                        builder.addDisallowedApplication(it)
-                    else
-                        builder.addAllowedApplication(it)
-                } catch (e: PackageManager.NameNotFoundException) {
-                    //Logger.d(e)
-                }
-            }
+            diag.append("perAppProxy was enabled in prefs, ignored for full-device VPN capture\n")
         }
 
         // Close the old interface since the parameters have been changed.
@@ -263,10 +264,22 @@ class V2RayVpnService : VpnService(), ServiceControl {
                     localSocket.setFileDescriptorsForSend(arrayOf(fd))
                     localSocket.outputStream.write(42)
                 }
+                try {
+                    val oldDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "")
+                    defaultDPreference.setPrefString("ddcat_vpn_last_setup", oldDiag + "\nsendFd=success tries=" + tries)
+                } catch (ignored: Exception) {
+                }
                 break
             } catch (e: Exception) {
                 Log.d(packageName, e.toString())
-                if (tries > 5) break
+                if (tries > 5) {
+                    try {
+                        val oldDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "")
+                        defaultDPreference.setPrefString("ddcat_vpn_last_setup", oldDiag + "\nsendFd=failed after retries; err=" + e.toString())
+                    } catch (ignored: Exception) {
+                    }
+                    break
+                }
                 tries += 1
             }
         }

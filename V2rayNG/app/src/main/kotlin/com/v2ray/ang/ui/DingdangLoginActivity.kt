@@ -15,6 +15,7 @@ import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.AngConfig
 import com.v2ray.ang.extension.defaultDPreference
 import com.v2ray.ang.extension.toast
+import com.v2ray.ang.ui.PerAppProxyActivity
 import com.v2ray.ang.util.AngConfigManager
 import com.v2ray.ang.util.Utils
 import org.json.JSONObject
@@ -96,9 +97,23 @@ class DingdangLoginActivity : AppCompatActivity() {
         startButton.isEnabled = false
         startButton.setOnClickListener { startProxy() }
         startButton.setOnLongClickListener {
-            val diag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "暂无 VPN setup 诊断信息")
+            val vpnDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "暂无 VPN setup 诊断信息")
+            val svcDiag = defaultDPreference.getPrefString("ddcat_service_last_start", "暂无 Service 启动诊断信息")
+            val cfg = defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
+            val all = "=== DingdangCat VPN Diagnostic V1.1.4 ===\n" +
+                    "mode=" + defaultDPreference.getPrefString(AppConfig.PREF_MODE, "") + "\n" +
+                    "routingMode=" + defaultDPreference.getPrefString(SettingsActivity.PREF_ROUTING_MODE, "") + "\n" +
+                    "localDns=" + defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false) + "\n" +
+                    "remoteDns=" + defaultDPreference.getPrefString(SettingsActivity.PREF_REMOTE_DNS, "") + "\n" +
+                    "perAppProxy=" + defaultDPreference.getPrefBoolean(SettingsActivity.PREF_PER_APP_PROXY, false) + "\n" +
+                    "forwardIpv6=" + defaultDPreference.getPrefBoolean(SettingsActivity.PREF_FORWARD_IPV6, false) + "\n" +
+                    "currDomain=" + defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "") + "\n" +
+                    "currConfigLen=" + cfg.length + "\n\n" +
+                    "--- service start ---\n" + svcDiag + "\n\n" +
+                    "--- vpn setup ---\n" + vpnDiag + "\n\n" +
+                    "--- current config ---\n" + cfg
             val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("ddcat-vpn-diagnostic", diag))
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("ddcat-vpn-diagnostic", all))
             toast("VPN 诊断信息已复制")
             true
         }
@@ -200,21 +215,39 @@ class DingdangLoginActivity : AppCompatActivity() {
         AngConfigManager.addVlessServer(bean, -1)
         val index = AngConfigManager.configs.vmess.size - 1
         AngConfigManager.setActiveServer(index)
-        defaultDPreference.setPrefString(AppConfig.PREF_MODE, "VPN")
-        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
-        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_FORWARD_IPV6, false)
-        defaultDPreference.setPrefString(SettingsActivity.PREF_REMOTE_DNS, "1.1.1.1")
-        defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_MODE, "0")
+        forceFullDeviceVpnDefaults(host, port)
         // Let original v2rayNG config generator write PREF_CURR_CONFIG / DOMAIN / TAGS using VLESS type.
         AngConfigManager.genStoreV2rayConfig(index)
         defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "$host:$port")
+        defaultDPreference.setPrefString("ddcat_vpn_last_setup", "尚未收到 VPN setup 回调；请启动后长按复制新的诊断。")
+        defaultDPreference.setPrefString("ddcat_service_last_start", "尚未启动 Service。")
         return index
+    }
+
+    private fun forceFullDeviceVpnDefaults(host: String, port: Int) {
+        defaultDPreference.setPrefString(AppConfig.PREF_MODE, "VPN")
+        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
+        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_FORWARD_IPV6, false)
+        defaultDPreference.setPrefString(SettingsActivity.PREF_REMOTE_DNS, "1.1.1.1,8.8.8.8")
+        defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_MODE, "0")
+        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_PER_APP_PROXY, false)
+        defaultDPreference.setPrefBoolean(PerAppProxyActivity.PREF_BYPASS_APPS, false)
+        defaultDPreference.edit()
+                .remove(PerAppProxyActivity.PREF_PER_APP_PROXY_SET)
+                .apply()
+        defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "$host:$port")
     }
 
     private fun startProxy() {
         if (AngConfigManager.configs.index < 0) {
             toast("请先登录并导入线路")
             return
+        }
+        val bean = AngConfigManager.configs.vmess.getOrNull(AngConfigManager.configs.index)
+        if (bean != null) {
+            forceFullDeviceVpnDefaults(bean.address, bean.port)
+            AngConfigManager.genStoreV2rayConfig(AngConfigManager.configs.index)
+            defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "${bean.address}:${bean.port}")
         }
         status("正在启动服务...")
         if (defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN") == "VPN") {
@@ -231,8 +264,9 @@ class DingdangLoginActivity : AppCompatActivity() {
 
     private fun startOriginalService() {
         try {
+            defaultDPreference.setPrefString("ddcat_vpn_last_setup", "等待 VPN setup 回调；如果无法上网，请长按一键加速复制诊断。")
             val ok = Utils.startVService(this, AngConfigManager.configs.index)
-            status(if (ok) "已调用原版 v2rayNG 启动流程，请测试外网。" else "启动失败：当前线路配置无效")
+            status(if (ok) "启动流程已调用，正在等待 VPN 接管系统流量。若仍不能上网，请长按一键加速复制诊断。" else "启动失败：当前线路配置无效")
         } catch (e: Throwable) {
             status("启动异常：${e.message ?: e.javaClass.name}")
         }
