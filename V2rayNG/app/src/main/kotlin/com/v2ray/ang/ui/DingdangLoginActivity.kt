@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.drawable.ColorDrawable
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -16,6 +17,8 @@ import android.os.Looper
 import android.support.v7.app.AppCompatActivity
 import android.text.InputType
 import android.view.Gravity
+import android.view.Window
+import android.view.inputmethod.InputMethodManager
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
@@ -35,6 +38,8 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 /**
  * DdmNG launcher UI.
@@ -49,6 +54,9 @@ class DingdangLoginActivity : AppCompatActivity() {
         private const val PREF_DDCAT_SERVICE = "ddcat_service_url"
         private const val PREF_DDCAT_EMAIL = "ddcat_email"
         private const val DEFAULT_SERVICE_BASE = "https://buy.aisuper.top"
+        private const val MONTH_PLAN_URL = "https://buy.aisuper.top/buy/1"
+        private const val QUARTER_PLAN_URL = "https://buy.aisuper.top/buy/15"
+        private const val YEAR_PLAN_URL = "https://buy.aisuper.top/buy/16"
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -282,7 +290,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         val renew = actionButton("网络续费")
         val order = actionButton("访问网站")
         val support = actionButton("联系客服")
-        renew.setOnClickListener { openOfficialWebsite("网络续费") }
+        renew.setOnClickListener { showRenewPlansDialog() }
         order.setOnClickListener { openOfficialWebsite("访问网站") }
         support.setOnClickListener { openOfficialWebsite("联系客服") }
         actions.addView(renew, LinearLayout.LayoutParams(0, -1, 1f))
@@ -309,6 +317,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     }
 
     private fun doLogin() {
+        hideKeyboard()
         val base = resolveServiceBase()
         val email = emailInput.text.toString().trim()
         if (email.isEmpty()) {
@@ -357,6 +366,7 @@ class DingdangLoginActivity : AppCompatActivity() {
                     updateTrafficUsage(used, total, remain)
                     setReadyState("登录成功，专属线路已准备")
                     status("登录成功，专属线路已准备。")
+                    applyExpireWarning(expire)
                     startButton.isEnabled = true
                     loginButton.isEnabled = true
                     refreshButton.isEnabled = true
@@ -460,6 +470,7 @@ class DingdangLoginActivity : AppCompatActivity() {
             val ok = Utils.startVService(this, AngConfigManager.configs.index)
             if (ok) {
                 setAcceleratingState("加速成功，正在为你加速。")
+                verifyNetworkAfterStart()
                 toast("加速成功")
             } else {
                 setStartFailureState("启动失败：当前线路配置无效")
@@ -637,18 +648,176 @@ class DingdangLoginActivity : AppCompatActivity() {
         popup.menu.add("访问网站")
         popup.menu.add("联系客服")
         popup.setOnMenuItemClickListener { item ->
-            openOfficialWebsite(item.title.toString())
+            when (item.title.toString()) {
+                "网络续费" -> showRenewPlansDialog()
+                "访问网站" -> openOfficialWebsite("访问网站")
+                "联系客服" -> openOfficialWebsite("联系客服")
+                else -> openOfficialWebsite(item.title.toString())
+            }
             true
         }
         popup.show()
     }
 
+    private fun showRenewPlansDialog() {
+        hideKeyboard()
+        val dialog = android.app.Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val wrap = LinearLayout(this)
+        wrap.orientation = LinearLayout.VERTICAL
+        wrap.setPadding(dp(18), dp(18), dp(18), dp(18))
+        wrap.background = rounded(Color.rgb(7, 26, 61), dp(20).toFloat(), border, 1)
+
+        val title = TextView(this)
+        title.text = "选择网络续费套餐"
+        title.setTextColor(primaryText)
+        title.textSize = 20f
+        title.typeface = Typeface.DEFAULT_BOLD
+        title.gravity = Gravity.CENTER
+        wrap.addView(title, LinearLayout.LayoutParams(-1, -2))
+
+        val tips = TextView(this)
+        tips.text = "请选择适合你的使用时长，点击套餐卡片后将打开购买页面。"
+        tips.setTextColor(secondText)
+        tips.textSize = 13f
+        tips.gravity = Gravity.CENTER
+        tips.setPadding(0, dp(8), 0, dp(12))
+        wrap.addView(tips, LinearLayout.LayoutParams(-1, -2))
+
+        wrap.addView(renewPlanCard(dialog, "月套餐", "流量 30GB/月", "仅支持单台设备", MONTH_PLAN_URL), planCardLp())
+        wrap.addView(renewPlanCard(dialog, "季度套餐", "流量 50GB/月 × 3个月", "支持 2 台设备", QUARTER_PLAN_URL), planCardLp())
+        wrap.addView(renewPlanCard(dialog, "年套餐", "流量 100GB/月 × 12个月", "支持 3 台设备", YEAR_PLAN_URL), planCardLp())
+
+        val close = outlineButton("稍后再说")
+        close.setOnClickListener { dialog.dismiss() }
+        val closeLp = LinearLayout.LayoutParams(-1, dp(48))
+        closeLp.topMargin = dp(8)
+        wrap.addView(close, closeLp)
+
+        dialog.setContentView(wrap)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.show()
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.90f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+    }
+
+    private fun renewPlanCard(dialog: android.app.Dialog, name: String, traffic: String, devices: String, url: String): LinearLayout {
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setPadding(dp(16), dp(14), dp(16), dp(14))
+        card.background = rounded(Color.argb(180, 10, 40, 86), dp(16).toFloat(), Color.argb(150, 85, 180, 255), 1)
+        card.isClickable = true
+        card.setOnClickListener {
+            dialog.dismiss()
+            openUrl(name, url)
+        }
+
+        val nameRow = LinearLayout(this)
+        nameRow.orientation = LinearLayout.HORIZONTAL
+        nameRow.gravity = Gravity.CENTER_VERTICAL
+        card.addView(nameRow, LinearLayout.LayoutParams(-1, -2))
+
+        val title = TextView(this)
+        title.text = name
+        title.setTextColor(accent)
+        title.textSize = 18f
+        title.typeface = Typeface.DEFAULT_BOLD
+        nameRow.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+
+        val arrow = TextView(this)
+        arrow.text = "去购买  ›"
+        arrow.setTextColor(primaryText)
+        arrow.textSize = 13f
+        arrow.gravity = Gravity.RIGHT
+        nameRow.addView(arrow, LinearLayout.LayoutParams(dp(86), -2))
+
+        val trafficView = TextView(this)
+        trafficView.text = traffic
+        trafficView.setTextColor(primaryText)
+        trafficView.textSize = 15f
+        trafficView.setPadding(0, dp(8), 0, dp(2))
+        card.addView(trafficView, LinearLayout.LayoutParams(-1, -2))
+
+        val deviceView = TextView(this)
+        deviceView.text = devices
+        deviceView.setTextColor(secondText)
+        deviceView.textSize = 13f
+        card.addView(deviceView, LinearLayout.LayoutParams(-1, -2))
+        return card
+    }
+
+    private fun planCardLp(): LinearLayout.LayoutParams {
+        val lp = LinearLayout.LayoutParams(-1, -2)
+        lp.bottomMargin = dp(10)
+        return lp
+    }
+
     private fun openOfficialWebsite(actionName: String) {
+        openUrl(actionName, DEFAULT_SERVICE_BASE.trim().trimEnd('/'))
+    }
+
+    private fun openUrl(actionName: String, url: String) {
         try {
-            status(actionName + "：正在打开官方网站。")
-            Utils.openUri(this, DEFAULT_SERVICE_BASE.trim().trimEnd('/'))
+            status(actionName + "：正在打开页面。")
+            Utils.openUri(this, url)
         } catch (e: Throwable) {
-            toast("无法打开网站，请稍后重试")
+            toast("无法打开页面，请稍后重试")
+        }
+    }
+
+    private fun verifyNetworkAfterStart() {
+        mainHandler.postDelayed({
+            if (!isAccelerating) return@postDelayed
+            Thread {
+                try {
+                    httpGet(DEFAULT_SERVICE_BASE.trim().trimEnd('/'))
+                    mainHandler.post {
+                        if (isAccelerating) {
+                            status("网络连接已验证，加速服务正在运行。")
+                        }
+                    }
+                } catch (ignored: Throwable) {
+                    mainHandler.post {
+                        if (isAccelerating) {
+                            status("加速已启动，如网页仍无法打开，请断开后重试或联系客服。")
+                        }
+                    }
+                }
+            }.start()
+        }, 2500)
+    }
+
+    private fun applyExpireWarning(expire: String) {
+        accountExpireValue.setTextColor(Color.rgb(198, 216, 238))
+        val days = daysUntilExpire(expire)
+        if (days != null && days in 0..3) {
+            accountExpireValue.setTextColor(Color.rgb(255, 202, 89))
+            status("账号将在 " + days + " 天内到期，请及时续费。")
+        }
+    }
+
+    private fun daysUntilExpire(expire: String): Int? {
+        val clean = expire.trim()
+        if (clean.isEmpty() || clean == "--") return null
+        val patterns = arrayOf("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd", "yyyy/MM/dd HH:mm:ss", "yyyy/MM/dd")
+        for (pattern in patterns) {
+            try {
+                val sdf = SimpleDateFormat(pattern, Locale.US)
+                val time = sdf.parse(clean)?.time ?: continue
+                val diff = time - System.currentTimeMillis()
+                return Math.ceil(diff.toDouble() / 86400000.0).toInt()
+            } catch (ignored: Throwable) {
+            }
+        }
+        return null
+    }
+
+    private fun hideKeyboard() {
+        try {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(emailInput.windowToken, 0)
+            emailInput.clearFocus()
+        } catch (ignored: Throwable) {
         }
     }
 
