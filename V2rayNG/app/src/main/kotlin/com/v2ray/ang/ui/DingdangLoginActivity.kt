@@ -100,7 +100,7 @@ class DingdangLoginActivity : AppCompatActivity() {
             val vpnDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "暂无 VPN setup 诊断信息")
             val svcDiag = defaultDPreference.getPrefString("ddcat_service_last_start", "暂无 Service 启动诊断信息")
             val cfg = defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
-            val all = "=== DingdangCat VPN Diagnostic V1.1.4 ===\n" +
+            val all = "=== DingdangCat VPN Diagnostic V1.1.6.1 ===\n" +
                     "mode=" + defaultDPreference.getPrefString(AppConfig.PREF_MODE, "") + "\n" +
                     "routingMode=" + defaultDPreference.getPrefString(SettingsActivity.PREF_ROUTING_MODE, "") + "\n" +
                     "localDns=" + defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false) + "\n" +

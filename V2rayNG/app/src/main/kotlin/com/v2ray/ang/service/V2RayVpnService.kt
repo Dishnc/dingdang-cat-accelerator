@@ -112,6 +112,14 @@ class V2RayVpnService : VpnService(), ServiceControl {
         }
 
         diag.append("setup called\nparams=").append(parameters).append("\n")
+        try {
+            val tun2socks = File(applicationInfo.nativeLibraryDir, "libtun2socks.so")
+            diag.append("nativeLibraryDir=").append(applicationInfo.nativeLibraryDir).append("\n")
+            diag.append("tun2socksExists=").append(tun2socks.exists()).append(" size=").append(if (tun2socks.exists()) tun2socks.length() else -1).append("\n")
+            diag.append("packagePath=").append(Utils.packagePath(applicationContext)).append("\n")
+        } catch (e: Exception) {
+            diag.append("tun2socksCheck failed=").append(e.message).append("\n")
+        }
         diag.append("enableLocalDns=").append(enableLocalDns)
                 .append(" routingMode=").append(routingMode)
                 .append(" remoteDns=").append(defaultDPreference.getPrefString(SettingsActivity.PREF_REMOTE_DNS, ""))

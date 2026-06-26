@@ -29,6 +29,7 @@ import libv2ray.V2RayVPNServiceSupportsSet
 import rx.Observable
 import rx.Subscription
 import java.lang.ref.SoftReference
+import java.io.File
 import kotlin.math.min
 
 object V2RayServiceManager {
@@ -139,6 +140,15 @@ object V2RayServiceManager {
                     .append("configLen=").append(cfg.length).append("\n")
                     .append("domain=").append(domain).append("\n")
                     .append("name=").append(currentConfigName).append("\n")
+            try {
+                val tun2socks = File(service.applicationInfo.nativeLibraryDir, "libtun2socks.so")
+                diag.append("nativeLibraryDir=").append(service.applicationInfo.nativeLibraryDir).append("\n")
+                        .append("tun2socksExists=").append(tun2socks.exists()).append(" size=").append(if (tun2socks.exists()) tun2socks.length() else -1).append("\n")
+                        .append("packagePath=").append(Utils.packagePath(service.applicationContext)).append("\n")
+                        .append("packageCodePathForCore=").append(service.applicationInfo.nativeLibraryDir + "/").append("\n")
+            } catch (e: Exception) {
+                diag.append("native check exception=").append(e.message).append("\n")
+            }
 
             v2rayPoint.configureFileContent = cfg
             // Force full-device VPN capture. Connection test can succeed even when browser traffic is not captured
