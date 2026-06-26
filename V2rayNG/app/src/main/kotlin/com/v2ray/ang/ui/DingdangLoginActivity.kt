@@ -6,14 +6,19 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.graphics.drawable.ColorDrawable
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
+import android.support.v4.content.FileProvider
 import android.support.v7.app.AppCompatActivity
 import android.text.InputType
 import android.view.Gravity
@@ -24,6 +29,7 @@ import android.view.ViewGroup
 import android.widget.*
 import com.google.gson.GsonBuilder
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.BuildConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.AngConfig
 import com.v2ray.ang.extension.defaultDPreference
@@ -34,10 +40,14 @@ import com.v2ray.ang.util.MessageUtil
 import com.v2ray.ang.util.Utils
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -57,6 +67,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         private const val MONTH_PLAN_URL = "https://buy.aisuper.top/buy/1"
         private const val QUARTER_PLAN_URL = "https://buy.aisuper.top/buy/15"
         private const val YEAR_PLAN_URL = "https://buy.aisuper.top/buy/16"
+        private const val APP_UPDATE_API_PATH = "/api/app/update"
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -76,6 +87,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     private var activeIndex: Int = -1
     private var isAccelerating: Boolean = false
     private var serviceReceiverRegistered: Boolean = false
+    private var pendingUpdateApk: File? = null
 
     private val serviceStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -102,6 +114,20 @@ class DingdangLoginActivity : AppCompatActivity() {
     private val primaryText = Color.rgb(236, 247, 255)
     private val secondText = Color.rgb(156, 178, 207)
 
+    private data class UpdateInfo(
+            val latestVersionCode: Int,
+            val latestVersionName: String,
+            val minSupportedVersionCode: Int,
+            val forceUpdate: Boolean,
+            val forceRequired: Boolean,
+            val updateAvailable: Boolean,
+            val title: String,
+            val changelog: List<String>,
+            val apkUrl: String,
+            val apkSize: Long,
+            val sha256: String
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         title = "DdmNG"
@@ -122,6 +148,7 @@ class DingdangLoginActivity : AppCompatActivity() {
                 accountTrafficProgress.progress = 0
             }
         }
+        mainHandler.postDelayed({ checkForUpdates(false) }, 1500)
     }
 
     override fun onResume() {
@@ -131,6 +158,11 @@ class DingdangLoginActivity : AppCompatActivity() {
             serviceReceiverRegistered = true
         }
         MessageUtil.sendMsg2Service(this, AppConfig.MSG_REGISTER_CLIENT, "")
+        val pending = pendingUpdateApk
+        if (pending != null && pending.exists() && canInstallPackagesNow()) {
+            pendingUpdateApk = null
+            installDownloadedApk(pending)
+        }
     }
 
     override fun onPause() {
@@ -645,11 +677,13 @@ class DingdangLoginActivity : AppCompatActivity() {
     private fun showTopMenu(anchor: View) {
         val popup = PopupMenu(this, anchor)
         popup.menu.add("网络续费")
+        popup.menu.add("检查更新")
         popup.menu.add("访问网站")
         popup.menu.add("联系客服")
         popup.setOnMenuItemClickListener { item ->
             when (item.title.toString()) {
                 "网络续费" -> showRenewPlansDialog()
+                "检查更新" -> checkForUpdates(true)
                 "访问网站" -> openOfficialWebsite("访问网站")
                 "联系客服" -> openOfficialWebsite("联系客服")
                 else -> openOfficialWebsite(item.title.toString())
@@ -785,6 +819,235 @@ class DingdangLoginActivity : AppCompatActivity() {
                 }
             }.start()
         }, 2500)
+    }
+
+    private fun checkForUpdates(manual: Boolean) {
+        if (manual) {
+            status("正在检查版本更新...")
+        }
+        Thread {
+            try {
+                val base = resolveServiceBase()
+                val url = base + APP_UPDATE_API_PATH +
+                        "?current_version_code=" + BuildConfig.VERSION_CODE +
+                        "&current_version_name=" + URLEncoder.encode(BuildConfig.VERSION_NAME, "UTF-8") +
+                        "&package_name=" + URLEncoder.encode(packageName, "UTF-8")
+                val text = httpGet(url)
+                if (!text.trimStart().startsWith("{")) {
+                    throw IllegalStateException("更新接口没有返回 JSON")
+                }
+                val obj = JSONObject(text)
+                if (!obj.optBoolean("success", false)) {
+                    throw IllegalStateException(obj.optString("message", "检查更新失败"))
+                }
+                val enabled = obj.optBoolean("enabled", true)
+                if (!enabled) {
+                    if (manual) mainHandler.post { status("当前已是最新版本。") }
+                    return@Thread
+                }
+                val info = parseUpdateInfo(obj)
+                mainHandler.post {
+                    if (info.updateAvailable || info.forceRequired) {
+                        showUpdateDialog(info)
+                    } else if (manual) {
+                        status("当前已是最新版本：" + BuildConfig.VERSION_NAME)
+                        toast("当前已是最新版本")
+                    }
+                }
+            } catch (e: Throwable) {
+                if (manual) {
+                    mainHandler.post {
+                        status("检查更新失败：" + (e.message ?: e.javaClass.name))
+                        toast("检查更新失败")
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun parseUpdateInfo(obj: JSONObject): UpdateInfo {
+        val changelog = ArrayList<String>()
+        val arr = obj.optJSONArray("changelog")
+        if (arr != null) {
+            for (i in 0 until arr.length()) {
+                val line = arr.optString(i).trim()
+                if (line.isNotEmpty()) changelog.add(line)
+            }
+        }
+        return UpdateInfo(
+                latestVersionCode = obj.optInt("latest_version_code", 0),
+                latestVersionName = obj.optString("latest_version_name", ""),
+                minSupportedVersionCode = obj.optInt("min_supported_version_code", 0),
+                forceUpdate = obj.optBoolean("force_update", false),
+                forceRequired = obj.optBoolean("force_required", false),
+                updateAvailable = obj.optBoolean("update_available", false),
+                title = obj.optString("title", "发现新版本"),
+                changelog = changelog,
+                apkUrl = obj.optString("apk_url", ""),
+                apkSize = obj.optLong("apk_size", 0L),
+                sha256 = obj.optString("sha256", "")
+        )
+    }
+
+    private fun showUpdateDialog(info: UpdateInfo) {
+        val versionName = if (info.latestVersionName.isBlank()) info.latestVersionCode.toString() else info.latestVersionName
+        val lines = if (info.changelog.isNotEmpty()) {
+            info.changelog.joinToString("\n") { "• " + it }
+        } else {
+            "• 优化使用体验\n• 修复已知问题"
+        }
+        val sizeText = if (info.apkSize > 0L) "\n安装包大小：" + humanFileSize(info.apkSize) else ""
+        val forceText = if (info.forceRequired || info.forceUpdate) "\n\n当前版本需要更新后继续使用。" else ""
+        val message = "当前版本：" + BuildConfig.VERSION_NAME + "\n" +
+                "最新版本：" + versionName + "\n\n" +
+                "更新内容：\n" + lines + sizeText + forceText
+        val builder = android.app.AlertDialog.Builder(this)
+        builder.setTitle(if (info.title.isBlank()) "发现新版本" else info.title)
+        builder.setMessage(message)
+        builder.setPositiveButton("立即更新") { _, _ -> downloadAndInstallUpdate(info) }
+        if (!info.forceRequired && !info.forceUpdate) {
+            builder.setNegativeButton("稍后再说", null)
+        }
+        val dialog = builder.create()
+        dialog.setCancelable(!info.forceRequired && !info.forceUpdate)
+        dialog.setOnShowListener {
+            try {
+                dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.setTextColor(accent2)
+                dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE)?.setTextColor(Color.rgb(88, 112, 145))
+            } catch (ignored: Throwable) {
+            }
+        }
+        dialog.show()
+    }
+
+    private fun downloadAndInstallUpdate(info: UpdateInfo) {
+        if (info.apkUrl.isBlank()) {
+            toast("暂无可下载的安装包")
+            return
+        }
+        status("正在下载新版本安装包...")
+        Thread {
+            var conn: HttpURLConnection? = null
+            try {
+                conn = URL(info.apkUrl).openConnection() as HttpURLConnection
+                conn.connectTimeout = 20000
+                conn.readTimeout = 60000
+                conn.requestMethod = "GET"
+                val code = conn.responseCode
+                if (code !in 200..299) {
+                    throw IllegalStateException("下载失败，HTTP " + code)
+                }
+                val total = if (info.apkSize > 0L) info.apkSize else conn.contentLength.toLong()
+                val dir = File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: filesDir, "updates")
+                if (!dir.exists() && !dir.mkdirs()) {
+                    throw IllegalStateException("无法创建下载目录")
+                }
+                val safeVersion = (if (info.latestVersionName.isBlank()) info.latestVersionCode.toString() else info.latestVersionName)
+                        .replace(Regex("[^A-Za-z0-9._-]+"), "_")
+                val apk = File(dir, "DdmNG_update_" + safeVersion + ".apk")
+                var downloaded = 0L
+                var lastPercent = -1
+                conn.inputStream.use { input ->
+                    FileOutputStream(apk).use { output ->
+                        val buffer = ByteArray(32 * 1024)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            output.write(buffer, 0, read)
+                            downloaded += read.toLong()
+                            if (total > 0L) {
+                                val percent = (downloaded * 100L / total).toInt().coerceIn(0, 100)
+                                if (percent != lastPercent && (percent % 5 == 0 || percent == 100)) {
+                                    lastPercent = percent
+                                    mainHandler.post { status("正在下载新版本：" + percent + "%") }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (apk.length() <= 0L) {
+                    throw IllegalStateException("下载文件为空")
+                }
+                if (info.sha256.isNotBlank()) {
+                    val actual = sha256File(apk)
+                    if (!actual.equals(info.sha256.trim(), ignoreCase = true)) {
+                        apk.delete()
+                        throw IllegalStateException("安装包校验失败，请重新下载")
+                    }
+                }
+                mainHandler.post {
+                    status("新版本下载完成，正在打开安装界面。")
+                    installDownloadedApk(apk)
+                }
+            } catch (e: Throwable) {
+                mainHandler.post {
+                    status("更新失败：" + (e.message ?: e.javaClass.name))
+                    toast("更新失败，请稍后重试")
+                }
+            } finally {
+                try {
+                    conn?.disconnect()
+                } catch (ignored: Throwable) {
+                }
+            }
+        }.start()
+    }
+
+    private fun installDownloadedApk(apk: File) {
+        if (!apk.exists()) {
+            toast("安装包不存在，请重新下载")
+            return
+        }
+        if (!canInstallPackagesNow()) {
+            pendingUpdateApk = apk
+            toast("请允许本应用安装未知应用，然后返回继续安装")
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + packageName))
+                startActivity(intent)
+            } catch (e: Throwable) {
+                val intent = Intent(Settings.ACTION_SECURITY_SETTINGS)
+                startActivity(intent)
+            }
+            return
+        }
+        try {
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                FileProvider.getUriForFile(this, packageName + ".fileprovider", apk)
+            } else {
+                Uri.fromFile(apk)
+            }
+            val intent = Intent(Intent.ACTION_VIEW)
+            intent.setDataAndType(uri, "application/vnd.android.package-archive")
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            startActivity(intent)
+        } catch (e: Throwable) {
+            status("无法打开安装界面：" + (e.message ?: e.javaClass.name))
+            toast("无法打开安装界面")
+        }
+    }
+
+    private fun canInstallPackagesNow(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
+    }
+
+    private fun sha256File(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        FileInputStream(file).use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+    }
+
+    private fun humanFileSize(bytes: Long): String {
+        if (bytes <= 0L) return "--"
+        val mb = bytes.toDouble() / 1024.0 / 1024.0
+        return if (mb >= 1.0) String.format(Locale.US, "%.1f MB", mb) else String.format(Locale.US, "%.0f KB", bytes / 1024.0)
     }
 
     private fun applyExpireWarning(expire: String) {

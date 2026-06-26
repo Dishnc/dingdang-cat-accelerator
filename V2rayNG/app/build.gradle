@@ -16,8 +16,8 @@ android {
         minSdkVersion 17
         targetSdkVersion Integer.parseInt("$targetSdkVer")
         multiDexEnabled true
-        versionCode 1117
-        versionName "1.1.7-ddcat-runtime-tun2socks-packaging"
+        versionCode 1209
+        versionName "1.2.0.9-app-update-center"
     }
 
     buildTypes {
