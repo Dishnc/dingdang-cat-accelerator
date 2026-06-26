@@ -508,38 +508,42 @@ object Utils {
      */
     fun userAssetPath(context: Context): String {
         return try {
-            val dir = context.getExternalFilesDir("assets") ?: context.getDir("assets", 0)
+            // V1.0.19: use the app-internal assets directory and always sync the
+            // exact geo files bundled with the verified v2rayNG_1.5.0 arm64 APK.
+            // The previous external path could keep stale geoip/geosite files from
+            // earlier test builds and made initV2Env stop before returning.
+            val dir = java.io.File(context.filesDir, "assets")
             if (!dir.exists()) {
                 dir.mkdirs()
             }
-            copyAssetIfNeeded(context, "geoip.dat", dir)
-            copyAssetIfNeeded(context, "geosite.dat", dir)
+            copyAssetExact(context, "geoip.dat", dir)
+            copyAssetExact(context, "geosite.dat", dir)
             dir.absolutePath
         } catch (e: Throwable) {
             try {
-                context.getDir("assets", 0).absolutePath
+                val dir = context.getDir("assets", 0)
+                if (!dir.exists()) {
+                    dir.mkdirs()
+                }
+                copyAssetExact(context, "geoip.dat", dir)
+                copyAssetExact(context, "geosite.dat", dir)
+                dir.absolutePath
             } catch (ignored: Throwable) {
                 ""
             }
         }
     }
 
-    private fun copyAssetIfNeeded(context: Context, assetName: String, dir: java.io.File) {
+    private fun copyAssetExact(context: Context, assetName: String, dir: java.io.File) {
         try {
             val outFile = java.io.File(dir, assetName)
-            if (outFile.exists() && outFile.length() > 0) {
+            val bytes = context.assets.open(assetName).use { input -> input.readBytes() }
+            if (outFile.exists() && outFile.length() == bytes.size.toLong()) {
                 return
             }
-            context.assets.open(assetName).use { input ->
-                java.io.FileOutputStream(outFile).use { output ->
-                    val buffer = ByteArray(16 * 1024)
-                    while (true) {
-                        val len = input.read(buffer)
-                        if (len <= 0) break
-                        output.write(buffer, 0, len)
-                    }
-                    output.flush()
-                }
+            java.io.FileOutputStream(outFile, false).use { output ->
+                output.write(bytes)
+                output.flush()
             }
         } catch (ignored: Throwable) {
         }
