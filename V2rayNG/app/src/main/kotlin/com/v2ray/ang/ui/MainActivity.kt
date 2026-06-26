@@ -36,6 +36,8 @@ class MainActivity : BaseActivity() {
         private const val PREF_DDCAT_LAST_JSON = "ddcat_last_json"
         private const val PREF_DDCAT_VLESS_URL = "ddcat_vless_url"
         private const val PREF_DDCAT_CONFIG_GUID_KEY = "ddcat_config_guid"
+        private const val PREF_DDCAT_RUNTIME_DIAG = "ddcat_runtime_diag"
+        private const val PREF_DDCAT_RUNTIME_CRASH_MARK = "ddcat_runtime_crash_mark"
         private const val LEGACY_FIXED_GUID = "ddcat_legacy_default"
         private const val DEFAULT_REMARK = "叮当猫加速器默认线路"
     }
@@ -61,11 +63,11 @@ class MainActivity : BaseActivity() {
         btn_refresh.setOnClickListener { loginOrRefresh(true) }
         btn_connect.setOnClickListener { onConnectButtonClicked() }
         btn_connect.setOnLongClickListener {
-            copyCurrentConfigForDebug()
+            copyRuntimeDiagnosticForDebug()
             true
         }
         tv_line_info.setOnLongClickListener {
-            copyCurrentConfigForDebug()
+            copyRuntimeDiagnosticForDebug()
             true
         }
         btn_renew.setOnClickListener { openBusinessPage("/login.html") }
@@ -129,6 +131,7 @@ class MainActivity : BaseActivity() {
             return
         }
         AngConfigManager.setActiveServer(index)
+        markRuntime("UI start requested; guid=$guid; index=$index; mode=" + defaultDPreference.getPrefString(AppConfig.PREF_MODE, "") + "; currDomain=" + defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "") + "; currConfigLen=" + defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "").length)
 
         if (defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN") == "VPN") {
             val intent = VpnService.prepare(this)
@@ -153,8 +156,16 @@ class MainActivity : BaseActivity() {
         // This makes AngConfigManager.setActiveServer(index), genStoreV2rayConfig(),
         // PREF_CURR_CONFIG / PREF_CURR_CONFIG_DOMAIN parsing, and service start all run
         // through the same chain as the stock v2rayNG app.
-        if (!Utils.startVService(this, guid)) {
-            toast("启动失败，请检查线路参数或稍后重试")
+        markRuntime("before Utils.startVService; guid=$guid; index=$index")
+        val ok = try {
+            Utils.startVService(this, guid)
+        } catch (e: Throwable) {
+            markRuntime("Utils.startVService threw: " + e.javaClass.name + ": " + (e.message ?: ""))
+            false
+        }
+        markRuntime("after Utils.startVService; result=$ok")
+        if (!ok) {
+            toast("启动失败，请长按一键加速复制诊断信息发给我")
             hideCircle()
         }
     }
@@ -495,6 +506,43 @@ class MainActivity : BaseActivity() {
         defaultDPreference.setPrefBoolean(SettingsActivity.PREF_PER_APP_PROXY, false)
         defaultDPreference.setPrefBoolean(SettingsActivity.PREF_FORWARD_IPV6, false)
         defaultDPreference.setPrefBoolean(SettingsActivity.PREF_SNIFFING_ENABLED, true)
+    }
+
+
+    private fun markRuntime(step: String) {
+        try {
+            val old = defaultDPreference.getPrefString(PREF_DDCAT_RUNTIME_DIAG, "")
+            val line = System.currentTimeMillis().toString() + " | " + step
+            defaultDPreference.setPrefString(PREF_DDCAT_RUNTIME_DIAG, (old + "\n" + line).takeLast(12000))
+            defaultDPreference.setPrefString(PREF_DDCAT_RUNTIME_CRASH_MARK, step)
+        } catch (ignored: Throwable) {
+        }
+    }
+
+    private fun copyRuntimeDiagnosticForDebug() {
+        val guid = currentLineGuid()
+        val runtime = defaultDPreference.getPrefString(PREF_DDCAT_RUNTIME_DIAG, "")
+        val crashMark = defaultDPreference.getPrefString(PREF_DDCAT_RUNTIME_CRASH_MARK, "")
+        val currConfig = defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
+        val rawConfig = if (guid.isNotBlank()) defaultDPreference.getPrefString(AppConfig.ANG_CONFIG + guid, "") else ""
+        val report = StringBuilder()
+        report.append("=== DingdangCat Runtime Diagnostic ===\n")
+        report.append("version=V1.0.16-no-usb-runtime-diagnose\n")
+        report.append("guid=").append(guid).append("\n")
+        report.append("index=").append(if (guid.isNotBlank()) AngConfigManager.getIndexViaGuid(guid) else -1).append("\n")
+        report.append("mode=").append(defaultDPreference.getPrefString(AppConfig.PREF_MODE, "")).append("\n")
+        report.append("currDomain=").append(defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "")).append("\n")
+        report.append("currConfigLen=").append(currConfig.length).append("\n")
+        report.append("rawConfigLen=").append(rawConfig.length).append("\n")
+        report.append("localDns=").append(defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)).append("\n")
+        report.append("remoteDns=").append(defaultDPreference.getPrefString(SettingsActivity.PREF_REMOTE_DNS, "")).append("\n")
+        report.append("lastCrashMark=").append(crashMark).append("\n")
+        report.append("\n--- runtime steps ---\n")
+        report.append(runtime.ifBlank { "<empty>" })
+        report.append("\n--- current config ---\n")
+        report.append(currConfig.ifBlank { rawConfig.ifBlank { "<empty>" } })
+        Utils.setClipboard(this, report.toString())
+        toast("运行诊断已复制，请直接发给我")
     }
 
     private fun copyCurrentConfigForDebug() {
