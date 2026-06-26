@@ -20,10 +20,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.lang.ref.SoftReference
 
 class V2RayVpnService : VpnService(), ServiceControl {
     private lateinit var mInterface: ParcelFileDescriptor
+    private var tun2socksProcess: Process? = null
 
     /**
         * Unfortunately registerDefaultNetworkCallback is going to return our VPN interface: https://android.googlesource.com/platform/frameworks/base/+/dda156ab0c5d66ad82bdcf76cda07cbc0a9c8a2e
@@ -101,6 +104,9 @@ class V2RayVpnService : VpnService(), ServiceControl {
         var hasAddress = false
         var hasDefaultIpv4Route = false
         var hasDns = false
+        var tunMtu = 1500
+        var tunAddress = "26.26.26.1"
+        var tunPrefix = 30
 
         try {
             // Force IPv4 family for full-device VPN capture. Some Android builds will not route DNS reliably
@@ -246,6 +252,7 @@ class V2RayVpnService : VpnService(), ServiceControl {
         try {
             mInterface = builder.establish()!!
             diag.append("builder.establish=success\n")
+            diag.append(startManualTun2socks(tunMtu, tunAddress, tunPrefix))
             diag.append("before sendFd call\n")
             defaultDPreference.setPrefString("ddcat_vpn_last_setup", diag.toString())
         } catch (e: Exception) {
@@ -265,6 +272,107 @@ class V2RayVpnService : VpnService(), ServiceControl {
             defaultDPreference.setPrefString("ddcat_vpn_last_setup", oldDiag + "\n" + line)
         } catch (ignored: Exception) {
         }
+    }
+
+
+    private fun prefixToNetmask(prefix: Int): String {
+        val safePrefix = Math.max(0, Math.min(32, prefix))
+        val mask = if (safePrefix == 0) 0L else (0xffffffffL shl (32 - safePrefix)) and 0xffffffffL
+        return listOf(
+                (mask shr 24) and 0xff,
+                (mask shr 16) and 0xff,
+                (mask shr 8) and 0xff,
+                mask and 0xff
+        ).joinToString(".") { it.toString() }
+    }
+
+    private fun peerIpv4(ip: String): String {
+        return try {
+            val parts = ip.split(".").map { it.toInt() }.toMutableList()
+            if (parts.size != 4) return "26.26.26.2"
+            parts[3] = if (parts[3] >= 254) parts[3] - 1 else parts[3] + 1
+            parts.joinToString(".")
+        } catch (e: Exception) {
+            "26.26.26.2"
+        }
+    }
+
+    private fun destroyTun2socksProcess(reason: String) {
+        try {
+            tun2socksProcess?.destroy()
+            appendVpnDiag("manualTun2socks destroy; reason=" + reason)
+        } catch (ignored: Exception) {
+        }
+        tun2socksProcess = null
+    }
+
+    private fun startManualTun2socks(mtu: Int, tunAddress: String, tunPrefix: Int): String {
+        val diag = StringBuilder()
+        val sockPath = File(Utils.packagePath(applicationContext), "sock_path").absolutePath
+        try {
+            destroyTun2socksProcess("restart-before-start")
+            try {
+                File(sockPath).delete()
+                diag.append("manualTun2socks oldSockDeleted=").append(sockPath).append("\n")
+            } catch (ignored: Exception) {
+            }
+
+            val nativeFile = File(applicationInfo.nativeLibraryDir, "libtun2socks.so")
+            val runtimeFile = File(filesDir, "native/libtun2socks.so")
+            val exe = when {
+                nativeFile.exists() -> nativeFile
+                runtimeFile.exists() -> runtimeFile
+                else -> nativeFile
+            }
+            if (exe.exists()) {
+                try { exe.setExecutable(true, false) } catch (ignored: Exception) {}
+            }
+
+            val netifIp = peerIpv4(tunAddress)
+            val netmask = prefixToNetmask(tunPrefix)
+            val cmd = arrayListOf(
+                    exe.absolutePath,
+                    "--netif-ipaddr", netifIp,
+                    "--netif-netmask", netmask,
+                    "--socks-server-addr", "127.0.0.1:10808",
+                    "--tunmtu", mtu.toString(),
+                    "--sock-path", sockPath,
+                    "--enable-udprelay",
+                    "--loglevel", "notice",
+                    "--logger", "stdout"
+            )
+            diag.append("manualTun2socks exe=").append(exe.absolutePath)
+                    .append(" exists=").append(exe.exists())
+                    .append(" size=").append(if (exe.exists()) exe.length() else -1)
+                    .append(" canExecute=").append(exe.canExecute())
+                    .append("\n")
+            diag.append("manualTun2socks args=").append(cmd.joinToString(" ")).append("\n")
+
+            val pb = ProcessBuilder(cmd)
+            pb.redirectErrorStream(true)
+            pb.directory(filesDir)
+            tun2socksProcess = pb.start()
+            diag.append("manualTun2socks=startSuccess\n")
+
+            val processRef = tun2socksProcess
+            GlobalScope.launch(Dispatchers.IO) {
+                try {
+                    val reader = BufferedReader(InputStreamReader(processRef?.inputStream))
+                    var count = 0
+                    while (count < 40) {
+                        val line = reader.readLine() ?: break
+                        appendVpnDiag("manualTun2socksOut=" + line.take(240))
+                        count++
+                    }
+                } catch (e: Exception) {
+                    appendVpnDiag("manualTun2socksOutErr=" + e.javaClass.simpleName + ":" + (e.message ?: ""))
+                }
+            }
+        } catch (e: Exception) {
+            diag.append("manualTun2socks=startFailed err=")
+                    .append(e.javaClass.simpleName).append(":").append(e.message ?: "").append("\n")
+        }
+        return diag.toString()
     }
 
     private fun sendFd() {
@@ -342,6 +450,7 @@ class V2RayVpnService : VpnService(), ServiceControl {
             }
         }
 
+        destroyTun2socksProcess("stopV2Ray")
         V2RayServiceManager.stopV2rayPoint()
 
         if (isForced) {
