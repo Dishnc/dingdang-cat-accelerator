@@ -45,9 +45,16 @@ object V2RayServiceManager {
             field = value
             val context = value?.get()?.getService()?.applicationContext
             context?.let {
-                v2rayPoint.packageName = Utils.packagePath(context)
-                v2rayPoint.packageCodePath = context.applicationInfo.nativeLibraryDir + "/"
+                // Exact arm64 v2rayNG_1.5.0 core compatibility:
+                // the release libgojni.so uses initV2Env/asyncResolve and does NOT
+                // export packageName/packageCodePath/enableLocalDNS/forwardIpv6/proxyOnly
+                // JNI setters. Calling those old setters with this core causes a crash.
                 Seq.setContext(context)
+                try {
+                    Libv2ray.initV2Env(context.applicationInfo.nativeLibraryDir + "/")
+                } catch (e: Throwable) {
+                    Log.d(AppConfig.ANG_PACKAGE, "initV2Env failed: " + e.toString())
+                }
             }
         }
     var currentConfigName = "NG"
@@ -129,10 +136,12 @@ object V2RayServiceManager {
             }
 
             v2rayPoint.configureFileContent = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
-            v2rayPoint.enableLocalDNS = service.defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
-            v2rayPoint.forwardIpv6 = service.defaultDPreference.getPrefBoolean(SettingsActivity.PREF_FORWARD_IPV6, false)
             v2rayPoint.domainName = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "")
-            v2rayPoint.proxyOnly = service.defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN") != "VPN"
+            try {
+                v2rayPoint.asyncResolve = service.defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
+            } catch (e: Throwable) {
+                Log.d(service.packageName, "set asyncResolve failed: " + e.toString())
+            }
             currentConfigName = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_NAME, "NG")
 
             try {

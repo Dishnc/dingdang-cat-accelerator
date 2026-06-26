@@ -291,13 +291,12 @@ object Utils {
         if (AngConfigManager.genStoreV2rayConfig(-1)) {
             val configContent = AngConfigManager.currGeneratedV2rayConfig()
             val configType = AngConfigManager.currConfigType()
+            // For Legacy XTLS custom JSON, do not call Libv2ray.testConfig().
+            // The exact v2rayNG_1.5.0 arm64 core can run the known-good JSON, but
+            // testConfig is a native call and caused crashes during earlier attempts.
+            // Let the stock service start path runLoop() handle the runtime config.
             if (configType == EConfigType.CUSTOM) {
-                try {
-                    Libv2ray.testConfig(configContent)
-                } catch (e: Exception) {
-                    context.toast(e.toString())
-                    return false
-                }
+                Log.d(AppConfig.ANG_PACKAGE, "Skip native testConfig for CUSTOM legacy config")
             }
             V2RayServiceManager.startV2Ray(context, context.v2RayApplication.defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN"))
             return true
