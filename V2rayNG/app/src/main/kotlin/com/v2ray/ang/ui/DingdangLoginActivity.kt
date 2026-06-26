@@ -1,9 +1,11 @@
 package com.v2ray.ang.ui
 
+import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -25,6 +27,7 @@ import com.v2ray.ang.extension.defaultDPreference
 import com.v2ray.ang.extension.toast
 import com.v2ray.ang.ui.PerAppProxyActivity
 import com.v2ray.ang.util.AngConfigManager
+import com.v2ray.ang.util.MessageUtil
 import com.v2ray.ang.util.Utils
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -59,9 +62,29 @@ class DingdangLoginActivity : AppCompatActivity() {
     private lateinit var accountEmailValue: TextView
     private lateinit var accountStatusValue: TextView
     private lateinit var accountExpireValue: TextView
-    private lateinit var accountTrafficValue: TextView
-    private lateinit var accountRemainValue: TextView
+    private lateinit var accountTrafficDetailValue: TextView
+    private lateinit var accountTrafficPercentValue: TextView
+    private lateinit var accountTrafficProgress: ProgressBar
     private var activeIndex: Int = -1
+    private var isAccelerating: Boolean = false
+    private var serviceReceiverRegistered: Boolean = false
+
+    private val serviceStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.getIntExtra("key", 0)) {
+                AppConfig.MSG_STATE_RUNNING, AppConfig.MSG_STATE_START_SUCCESS -> {
+                    setAcceleratingState("加速成功，正在为你加速。")
+                }
+                AppConfig.MSG_STATE_START_FAILURE -> {
+                    setStartFailureState("启动失败：当前线路配置无效")
+                }
+                AppConfig.MSG_STATE_NOT_RUNNING, AppConfig.MSG_STATE_STOP_SUCCESS -> {
+                    setDisconnectedState("已断开连接")
+                }
+            }
+        }
+    }
+
     private val accent = Color.rgb(36, 216, 242)
     private val accent2 = Color.rgb(28, 140, 255)
     private val bgTop = Color.rgb(4, 18, 45)
@@ -86,10 +109,31 @@ class DingdangLoginActivity : AppCompatActivity() {
                 accountEmailValue.text = defaultDPreference.getPrefString(PREF_DDCAT_EMAIL, "已导入线路")
                 accountStatusValue.text = "已准备"
                 accountExpireValue.text = "登录后自动刷新"
-                accountTrafficValue.text = "登录后自动刷新"
-                accountRemainValue.text = "--"
+                accountTrafficDetailValue.text = "登录后自动刷新"
+                accountTrafficPercentValue.text = "--"
+                accountTrafficProgress.progress = 0
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!serviceReceiverRegistered) {
+            registerReceiver(serviceStateReceiver, IntentFilter(AppConfig.BROADCAST_ACTION_ACTIVITY))
+            serviceReceiverRegistered = true
+        }
+        MessageUtil.sendMsg2Service(this, AppConfig.MSG_REGISTER_CLIENT, "")
+    }
+
+    override fun onPause() {
+        if (serviceReceiverRegistered) {
+            try {
+                unregisterReceiver(serviceStateReceiver)
+            } catch (ignored: Throwable) {
+            }
+            serviceReceiverRegistered = false
+        }
+        super.onPause()
     }
 
     private fun buildUi() {
@@ -111,7 +155,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         box.addView(top, LinearLayout.LayoutParams(-1, dp(48)))
 
         val menuBtn = smallTopButton("☰")
-        menuBtn.setOnClickListener { startActivity(Intent(this, MainActivity::class.java)) }
+        menuBtn.setOnClickListener { showTopMenu(menuBtn) }
         top.addView(menuBtn, LinearLayout.LayoutParams(dp(44), dp(44)))
 
         val topTitle = TextView(this)
@@ -122,9 +166,8 @@ class DingdangLoginActivity : AppCompatActivity() {
         topTitle.typeface = Typeface.DEFAULT_BOLD
         top.addView(topTitle, LinearLayout.LayoutParams(0, -1, 1f))
 
-        val moreBtn = smallTopButton("⋮")
-        moreBtn.setOnClickListener { startActivity(Intent(this, MainActivity::class.java)) }
-        top.addView(moreBtn, LinearLayout.LayoutParams(dp(44), dp(44)))
+        val topRightSpacer = TextView(this)
+        top.addView(topRightSpacer, LinearLayout.LayoutParams(dp(44), dp(44)))
 
         val logo = ImageView(this)
         logo.setImageResource(R.drawable.ddmng_logo)
@@ -208,7 +251,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         startButton = primaryButton("🚀  一键加速")
         startButton.textSize = 20f
         startButton.isEnabled = false
-        startButton.setOnClickListener { startProxy() }
+        startButton.setOnClickListener { toggleProxy() }
         startButton.setOnLongClickListener {
             copyDiagnostic()
             true
@@ -221,20 +264,27 @@ class DingdangLoginActivity : AppCompatActivity() {
         accountEmailValue = row(accountCard, "账号", defaultDPreference.getPrefString(PREF_DDCAT_EMAIL, "--"))
         accountStatusValue = row(accountCard, "套餐状态", "未查询")
         accountExpireValue = row(accountCard, "到期时间", "--")
-        accountTrafficValue = row(accountCard, "流量使用", "--")
-        accountRemainValue = row(accountCard, "剩余流量", "--", accent)
+        accountTrafficDetailValue = row(accountCard, "流量用量", "--")
+        accountTrafficPercentValue = row(accountCard, "流量使用率", "--", accent)
+        accountTrafficProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
+        accountTrafficProgress.max = 100
+        accountTrafficProgress.progress = 0
+        val progressLp = LinearLayout.LayoutParams(-1, dp(10))
+        progressLp.topMargin = dp(10)
+        progressLp.bottomMargin = dp(4)
+        accountCard.addView(accountTrafficProgress, progressLp)
 
         val actions = LinearLayout(this)
         actions.orientation = LinearLayout.HORIZONTAL
         val actionsLp = LinearLayout.LayoutParams(-1, dp(58))
         actionsLp.topMargin = dp(8)
         box.addView(actions, actionsLp)
-        val renew = actionButton("套餐续费")
-        val order = actionButton("在线下单")
+        val renew = actionButton("网络续费")
+        val order = actionButton("访问网站")
         val support = actionButton("联系客服")
-        renew.setOnClickListener { toast("请联系客服办理套餐续费") }
-        order.setOnClickListener { toast("请联系客服办理在线下单") }
-        support.setOnClickListener { toast("请联系客服获取帮助") }
+        renew.setOnClickListener { openOfficialWebsite("网络续费") }
+        order.setOnClickListener { openOfficialWebsite("访问网站") }
+        support.setOnClickListener { openOfficialWebsite("联系客服") }
         actions.addView(renew, LinearLayout.LayoutParams(0, -1, 1f))
         val p2 = LinearLayout.LayoutParams(0, -1, 1f); p2.leftMargin = dp(10); actions.addView(order, p2)
         val p3 = LinearLayout.LayoutParams(0, -1, 1f); p3.leftMargin = dp(10); actions.addView(support, p3)
@@ -304,10 +354,9 @@ class DingdangLoginActivity : AppCompatActivity() {
                     accountEmailValue.text = email
                     accountStatusValue.text = statusTextValue.ifBlank { "正常使用" }
                     accountExpireValue.text = expire.ifBlank { "--" }
-                    accountTrafficValue.text = if (total > 0.0) String.format("%.2f GB / %.2f GB", used, total) else "--"
-                    accountRemainValue.text = if (remain >= 0.0) String.format("%.2f GB", remain) else "--"
+                    updateTrafficUsage(used, total, remain)
                     setReadyState("登录成功，专属线路已准备")
-                    status("登录成功，已自动导入 Legacy XTLS 专属线路。")
+                    status("登录成功，专属线路已准备。")
                     startButton.isEnabled = true
                     loginButton.isEnabled = true
                     refreshButton.isEnabled = true
@@ -370,6 +419,14 @@ class DingdangLoginActivity : AppCompatActivity() {
         defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "$host:$port")
     }
 
+    private fun toggleProxy() {
+        if (isAccelerating) {
+            stopProxy()
+        } else {
+            startProxy()
+        }
+    }
+
     private fun startProxy() {
         if (AngConfigManager.configs.index < 0) {
             toast("请先登录并导入线路")
@@ -402,21 +459,27 @@ class DingdangLoginActivity : AppCompatActivity() {
             defaultDPreference.setPrefString("ddcat_vpn_last_setup", "等待 VPN setup 回调；如果无法上网，请长按一键加速复制诊断。")
             val ok = Utils.startVService(this, AngConfigManager.configs.index)
             if (ok) {
-                connectionBadge.text = "● 已启动"
-                connectionBadge.setTextColor(Color.rgb(64, 232, 143))
-                connectionSubText.text = "加速服务已启动，正在接管系统网络"
-                status("加速服务已启动。如果需要排查，长按“一键加速”复制诊断。")
+                setAcceleratingState("加速成功，正在为你加速。")
+                toast("加速成功")
             } else {
-                connectionBadge.text = "● 失败"
-                connectionBadge.setTextColor(Color.rgb(255, 108, 108))
-                connectionSubText.text = "启动失败：当前线路配置无效"
-                status("启动失败：当前线路配置无效")
+                setStartFailureState("启动失败：当前线路配置无效")
             }
         } catch (e: Throwable) {
-            connectionBadge.text = "● 异常"
-            connectionBadge.setTextColor(Color.rgb(255, 108, 108))
-            connectionSubText.text = "启动异常，请长按一键加速复制诊断"
-            status("启动异常：${e.message ?: e.javaClass.name}")
+            setStartFailureState("启动异常：${e.message ?: e.javaClass.name}")
+        }
+    }
+
+    private fun stopProxy() {
+        try {
+            status("正在断开连接...")
+            connectionBadge.text = "● 断开中"
+            connectionBadge.setTextColor(Color.rgb(255, 202, 89))
+            connectionSubText.text = "正在断开加速服务"
+            Utils.stopVService(this)
+            setDisconnectedState("断开成功")
+            toast("断开成功")
+        } catch (e: Throwable) {
+            status("断开异常：${e.message ?: e.javaClass.name}")
         }
     }
 
@@ -530,9 +593,79 @@ class DingdangLoginActivity : AppCompatActivity() {
     }
 
     private fun setReadyState(message: String) {
+        isAccelerating = false
         connectionBadge.text = "● 已准备"
         connectionBadge.setTextColor(Color.rgb(64, 232, 143))
         connectionSubText.text = message
+        startButton.text = "🚀  一键加速"
+        startButton.isEnabled = AngConfigManager.configs.index >= 0
+    }
+
+    private fun setAcceleratingState(message: String) {
+        isAccelerating = true
+        connectionBadge.text = "● 加速中"
+        connectionBadge.setTextColor(Color.rgb(64, 232, 143))
+        connectionSubText.text = message + " 不使用时请点击断开连接，可节省流量。"
+        startButton.text = "🔌  断开连接"
+        startButton.isEnabled = true
+        status("不使用时请点击“断开连接”，可节省流量。")
+    }
+
+    private fun setDisconnectedState(message: String) {
+        isAccelerating = false
+        connectionBadge.text = "● 未连接"
+        connectionBadge.setTextColor(Color.rgb(64, 232, 143))
+        connectionSubText.text = message
+        startButton.text = "🚀  一键加速"
+        startButton.isEnabled = AngConfigManager.configs.index >= 0
+        status(message + "，需要时可重新点击“一键加速”。")
+    }
+
+    private fun setStartFailureState(message: String) {
+        isAccelerating = false
+        connectionBadge.text = "● 失败"
+        connectionBadge.setTextColor(Color.rgb(255, 108, 108))
+        connectionSubText.text = message
+        startButton.text = "🚀  一键加速"
+        startButton.isEnabled = AngConfigManager.configs.index >= 0
+        status(message)
+    }
+
+    private fun showTopMenu(anchor: View) {
+        val popup = PopupMenu(this, anchor)
+        popup.menu.add("网络续费")
+        popup.menu.add("访问网站")
+        popup.menu.add("联系客服")
+        popup.setOnMenuItemClickListener { item ->
+            openOfficialWebsite(item.title.toString())
+            true
+        }
+        popup.show()
+    }
+
+    private fun openOfficialWebsite(actionName: String) {
+        try {
+            status(actionName + "：正在打开官方网站。")
+            Utils.openUri(this, DEFAULT_SERVICE_BASE.trim().trimEnd('/'))
+        } catch (e: Throwable) {
+            toast("无法打开网站，请稍后重试")
+        }
+    }
+
+    private fun updateTrafficUsage(used: Double, total: Double, remainFromApi: Double) {
+        if (total > 0.0) {
+            val safeUsed = if (used >= 0.0) used else 0.0
+            val remain = if (remainFromApi >= 0.0) remainFromApi else total - safeUsed
+            val percent = (safeUsed * 100.0 / total).coerceIn(0.0, 100.0)
+            val percentInt = (percent + 0.5).toInt()
+            accountTrafficProgress.progress = percentInt
+            accountTrafficDetailValue.text = String.format("已用 %.2f GB / 总量 %.2f GB，剩余 %.2f GB", safeUsed, total, remain.coerceAtLeast(0.0))
+            accountTrafficPercentValue.text = percentInt.toString() + "%"
+        } else {
+            accountTrafficProgress.progress = 0
+            accountTrafficDetailValue.text = "--"
+            accountTrafficPercentValue.text = "--"
+        }
     }
 
     private fun optDouble(data: JSONObject, root: JSONObject, key: String): Double {
