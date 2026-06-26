@@ -24,6 +24,7 @@ import android.support.v7.app.AppCompatActivity
 import android.text.InputType
 import android.view.Gravity
 import android.view.Window
+import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.view.View
 import android.view.ViewGroup
@@ -1013,6 +1014,8 @@ class DingdangLoginActivity : AppCompatActivity() {
         params.add("from=app")
         params.add("source=ddmng")
         params.add("abi=arm64-v8a")
+        params.add("mode=fullscreen")
+        params.add("layout=app")
         params.add("package_name=" + URLEncoder.encode(packageName, "UTF-8"))
         params.add("version_name=" + URLEncoder.encode(BuildConfig.VERSION_NAME, "UTF-8"))
         params.add("version_code=" + BuildConfig.VERSION_CODE)
@@ -1034,14 +1037,14 @@ class DingdangLoginActivity : AppCompatActivity() {
 
             val wrap = LinearLayout(this)
             wrap.orientation = LinearLayout.VERTICAL
-            wrap.background = rounded(Color.rgb(5, 18, 43), dp(18).toFloat(), Color.argb(120, 80, 170, 255), 1)
+            wrap.setBackgroundColor(Color.rgb(5, 18, 43))
 
             val head = LinearLayout(this)
             head.orientation = LinearLayout.HORIZONTAL
             head.gravity = Gravity.CENTER_VERTICAL
             head.setPadding(dp(14), dp(10), dp(10), dp(10))
-            head.background = rounded(Color.rgb(7, 31, 68), dp(18).toFloat(), Color.TRANSPARENT, 0)
-            wrap.addView(head, LinearLayout.LayoutParams(-1, dp(58)))
+            head.setBackgroundColor(Color.rgb(7, 31, 68))
+            wrap.addView(head, LinearLayout.LayoutParams(-1, dp(56)))
 
             val title = TextView(this)
             title.text = "💬 DdmNG 在线客服"
@@ -1073,6 +1076,7 @@ class DingdangLoginActivity : AppCompatActivity() {
             settings.databaseEnabled = true
             settings.loadWithOverviewMode = true
             settings.useWideViewPort = true
+            try { settings.textZoom = 100 } catch (ignored: Throwable) {}
             settings.setSupportZoom(false)
             settings.javaScriptCanOpenWindowsAutomatically = true
             settings.setSupportMultipleWindows(true)
@@ -1131,8 +1135,19 @@ class DingdangLoginActivity : AppCompatActivity() {
 
             dialog.setContentView(wrap)
             dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
             dialog.show()
-            dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.96f).toInt(), (resources.displayMetrics.heightPixels * 0.90f).toInt())
+            dialog.window?.let { win ->
+                win.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                win.setGravity(Gravity.CENTER)
+                win.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+                val attrs = win.attributes
+                attrs.width = WindowManager.LayoutParams.MATCH_PARENT
+                attrs.height = WindowManager.LayoutParams.MATCH_PARENT
+                attrs.dimAmount = 0.18f
+                win.attributes = attrs
+                win.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
+            }
             webView.loadUrl(supportUrl)
         } catch (e: Throwable) {
             // 不再回退到外部浏览器，避免用户误以为仍然是网页跳转。
