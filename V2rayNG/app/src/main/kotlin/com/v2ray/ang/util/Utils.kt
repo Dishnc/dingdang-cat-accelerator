@@ -34,8 +34,49 @@ import java.io.IOException
 import java.net.*
 import libv2ray.Libv2ray
 import kotlin.coroutines.coroutineContext
+import org.json.JSONObject
 
 object Utils {
+
+    private const val DDCAT_RUNTIME_DIAG = "ddcat_runtime_diag"
+    private const val DDCAT_RUNTIME_CRASH_MARK = "ddcat_runtime_crash_mark"
+
+    private fun markDdcatRuntime(context: Context?, step: String) {
+        if (context == null) return
+        try {
+            val prefs = context.v2RayApplication.defaultDPreference
+            val old = prefs.getPrefString(DDCAT_RUNTIME_DIAG, "")
+            val line = System.currentTimeMillis().toString() + " | " + step
+            prefs.setPrefString(DDCAT_RUNTIME_DIAG, (old + "\n" + line).takeLast(12000))
+            prefs.setPrefString(DDCAT_RUNTIME_CRASH_MARK, step)
+            Log.d(AppConfig.ANG_PACKAGE, "DDCAT_RUNTIME: $step")
+        } catch (ignored: Throwable) {
+        }
+    }
+
+    private fun extractProxyDomainFromJson(config: String): String {
+        return try {
+            val root = JSONObject(config)
+            val outbounds = root.optJSONArray("outbounds")
+            if (outbounds != null) {
+                for (i in 0 until outbounds.length()) {
+                    val outbound = outbounds.optJSONObject(i) ?: continue
+                    val settings = outbound.optJSONObject("settings") ?: continue
+                    val vnext = settings.optJSONArray("vnext") ?: continue
+                    if (vnext.length() <= 0) continue
+                    val item = vnext.optJSONObject(0) ?: continue
+                    val address = item.optString("address", "")
+                    val port = item.optInt("port", 0)
+                    if (address.isNotBlank() && port > 0) {
+                        return if (isIpv6Address(address)) "[$address]:$port" else "$address:$port"
+                    }
+                }
+            }
+            ""
+        } catch (e: Throwable) {
+            ""
+        }
+    }
 
     val tcpTestingSockets = ArrayList<Socket?>()
 
@@ -271,6 +312,53 @@ object Utils {
         return false
     }
 
+
+    /**
+     * Dingdang legacy custom start path.
+     * Use the already verified JSON stored at ANG_CONFIG+guid directly, and avoid
+     * AngConfigManager.genStoreV2rayConfig()/CUSTOM parser before starting native service.
+     */
+    fun startDingdangLegacyCustomService(context: Context, guid: String): Boolean {
+        markDdcatRuntime(context, "Utils.startDingdangLegacyCustomService entered; guid=$guid")
+        return try {
+            val index = AngConfigManager.getIndexViaGuid(guid)
+            markDdcatRuntime(context, "legacy direct start index=$index")
+            if (index < 0) {
+                markDdcatRuntime(context, "legacy direct start failed: guid not found")
+                return false
+            }
+            context.v2RayApplication.curIndex = index
+            AngConfigManager.setActiveServer(index)
+            markDdcatRuntime(context, "legacy direct active server set")
+
+            val rawConfig = context.v2RayApplication.defaultDPreference.getPrefString(AppConfig.ANG_CONFIG + guid, "")
+            if (rawConfig.isBlank()) {
+                markDdcatRuntime(context, "legacy direct start failed: raw config empty")
+                return false
+            }
+            val domain = extractProxyDomainFromJson(rawConfig)
+            context.v2RayApplication.defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG, rawConfig)
+            context.v2RayApplication.defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_GUID, guid)
+            context.v2RayApplication.defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_NAME, "叮当猫 Legacy XTLS")
+            context.v2RayApplication.defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, domain)
+            markDdcatRuntime(context, "legacy direct prefs written; configLen=${rawConfig.length}; domain=$domain")
+
+            if (context.v2RayApplication.defaultDPreference.getPrefBoolean(SettingsActivity.PREF_PROXY_SHARING, false)) {
+                context.toast(R.string.toast_warning_pref_proxysharing_short)
+            } else {
+                context.toast(R.string.toast_services_start)
+            }
+            markDdcatRuntime(context, "legacy direct before V2RayServiceManager.startV2Ray")
+            V2RayServiceManager.startV2Ray(context, context.v2RayApplication.defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN"))
+            markDdcatRuntime(context, "legacy direct after V2RayServiceManager.startV2Ray returned")
+            true
+        } catch (e: Throwable) {
+            markDdcatRuntime(context, "legacy direct start threw: " + e.javaClass.name + ": " + (e.message ?: ""))
+            Log.d(AppConfig.ANG_PACKAGE, "legacy direct start failed: " + e.toString())
+            false
+        }
+    }
+
     fun startVServiceFromToggle(context: Context): Boolean {
         val result = startVService(context)
         if (!result) {
@@ -283,12 +371,15 @@ object Utils {
      * startVService
      */
     fun startVService(context: Context): Boolean {
+        markDdcatRuntime(context, "Utils.startVService entered")
         if (context.v2RayApplication.defaultDPreference.getPrefBoolean(SettingsActivity.PREF_PROXY_SHARING, false)) {
             context.toast(R.string.toast_warning_pref_proxysharing_short)
         }else{
             context.toast(R.string.toast_services_start)
         }
+        markDdcatRuntime(context, "before AngConfigManager.genStoreV2rayConfig")
         if (AngConfigManager.genStoreV2rayConfig(-1)) {
+            markDdcatRuntime(context, "after AngConfigManager.genStoreV2rayConfig success")
             val configContent = AngConfigManager.currGeneratedV2rayConfig()
             val configType = AngConfigManager.currConfigType()
             // For Legacy XTLS custom JSON, do not call Libv2ray.testConfig().
@@ -298,7 +389,9 @@ object Utils {
             if (configType == EConfigType.CUSTOM) {
                 Log.d(AppConfig.ANG_PACKAGE, "Skip native testConfig for CUSTOM legacy config")
             }
+            markDdcatRuntime(context, "before V2RayServiceManager.startV2Ray")
             V2RayServiceManager.startV2Ray(context, context.v2RayApplication.defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN"))
+            markDdcatRuntime(context, "after V2RayServiceManager.startV2Ray returned")
             return true
         } else {
             return false

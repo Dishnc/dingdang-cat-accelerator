@@ -37,7 +37,15 @@ object V2RayServiceManager {
     private const val NOTIFICATION_PENDING_INTENT_STOP_V2RAY = 1
     private const val NOTIFICATION_ICON_THRESHOLD = 3000
 
-    val v2rayPoint: V2RayPoint = Libv2ray.newV2RayPoint(V2RayCallback())
+    // Create V2RayPoint lazily. The exact arm64 core from the verified v2rayNG_1.5.0 APK
+    // may crash if newV2RayPoint() is called before initV2Env()/Seq.setContext().
+    val v2rayPoint: V2RayPoint by lazy {
+        val service = serviceControl?.get()?.getService()
+        markRuntime(service, "lazy newV2RayPoint begin")
+        val point = Libv2ray.newV2RayPoint(V2RayCallback())
+        markRuntime(service, "lazy newV2RayPoint success")
+        point
+    }
     private val mMsgReceive = ReceiveMessageHandler()
 
     var serviceControl: SoftReference<ServiceControl>? = null
@@ -87,15 +95,25 @@ object V2RayServiceManager {
     private var mNotificationManager: NotificationManager? = null
 
     fun startV2Ray(context: Context, mode: String) {
+        markRuntime(context, "V2RayServiceManager.startV2Ray entered; mode=" + mode)
         val intent = if (mode == "VPN") {
             Intent(context.applicationContext, V2RayVpnService::class.java)
         } else {
             Intent(context.applicationContext, V2RayProxyOnlyService::class.java)
         }
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
-            context.startForegroundService(intent)
-        } else {
-            context.startService(intent)
+        try {
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
+                markRuntime(context, "before context.startForegroundService")
+                context.startForegroundService(intent)
+                markRuntime(context, "after context.startForegroundService returned")
+            } else {
+                markRuntime(context, "before context.startService")
+                context.startService(intent)
+                markRuntime(context, "after context.startService returned")
+            }
+        } catch (e: Throwable) {
+            markRuntime(context, "start service threw: " + e.javaClass.name + ": " + (e.message ?: ""))
+            throw e
         }
     }
 

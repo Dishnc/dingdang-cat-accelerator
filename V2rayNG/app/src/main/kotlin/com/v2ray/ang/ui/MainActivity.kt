@@ -156,14 +156,14 @@ class MainActivity : BaseActivity() {
         // This makes AngConfigManager.setActiveServer(index), genStoreV2rayConfig(),
         // PREF_CURR_CONFIG / PREF_CURR_CONFIG_DOMAIN parsing, and service start all run
         // through the same chain as the stock v2rayNG app.
-        markRuntime("before Utils.startVService; guid=$guid; index=$index")
+        markRuntime("before Utils.startDingdangLegacyCustomService; guid=$guid; index=$index")
         val ok = try {
-            Utils.startVService(this, guid)
+            Utils.startDingdangLegacyCustomService(this, guid)
         } catch (e: Throwable) {
-            markRuntime("Utils.startVService threw: " + e.javaClass.name + ": " + (e.message ?: ""))
+            markRuntime("Utils.startDingdangLegacyCustomService threw: " + e.javaClass.name + ": " + (e.message ?: ""))
             false
         }
-        markRuntime("after Utils.startVService; result=$ok")
+        markRuntime("after Utils.startDingdangLegacyCustomService; result=$ok")
         if (!ok) {
             toast("启动失败，请长按一键加速复制诊断信息发给我")
             hideCircle()
