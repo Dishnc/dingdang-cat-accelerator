@@ -94,9 +94,6 @@ class V2RayVpnService : VpnService(), ServiceControl {
         val enableLocalDns = defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
         val routingMode = defaultDPreference.getPrefString(SettingsActivity.PREF_ROUTING_MODE, "0")
 
-        var hasIpv4DefaultRoute = false
-        var hasDnsServer = false
-
         parameters.split(" ")
                 .map { it.split(",") }
                 .forEach {
@@ -105,9 +102,6 @@ class V2RayVpnService : VpnService(), ServiceControl {
                         's' -> builder.addSearchDomain(it[1])
                         'a' -> builder.addAddress(it[1], Integer.parseInt(it[2]))
                         'r' -> {
-                            if (it.size >= 3 && it[1] == "0.0.0.0" && it[2] == "0") {
-                                hasIpv4DefaultRoute = true
-                            }
                             if (routingMode == "1" || routingMode == "3") {
                                 if (it[1] == "::") { //not very elegant, should move Vpn setting in Kotlin, simplify go code
                                     builder.addRoute("2000::", 3)
@@ -121,10 +115,7 @@ class V2RayVpnService : VpnService(), ServiceControl {
                                 builder.addRoute(it[1], Integer.parseInt(it[2]))
                             }
                         }
-                        'd' -> {
-                            builder.addDnsServer(it[1])
-                            hasDnsServer = true
-                        }
+                        'd' -> builder.addDnsServer(it[1])
                     }
                 }
 
@@ -132,26 +123,7 @@ class V2RayVpnService : VpnService(), ServiceControl {
             Utils.getRemoteDnsServers(defaultDPreference)
                 .forEach {
                     builder.addDnsServer(it)
-                    hasDnsServer = true
                 }
-        }
-
-        // Some legacy/custom profiles may start the core successfully but emit incomplete
-        // VPN parameters. Force the minimal IPv4 default route and DNS server so browser
-        // DNS requests are really captured by the VPN tunnel.
-        if (!hasIpv4DefaultRoute) {
-            try {
-                builder.addRoute("0.0.0.0", 0)
-            } catch (e: Exception) {
-                Log.d(packageName, "force default route failed: " + e.toString())
-            }
-        }
-        if (!hasDnsServer) {
-            try {
-                builder.addDnsServer("1.1.1.1")
-            } catch (e: Exception) {
-                Log.d(packageName, "force dns failed: " + e.toString())
-            }
         }
 
         builder.setSession(V2RayServiceManager.currentConfigName)

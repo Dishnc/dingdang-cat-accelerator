@@ -380,7 +380,9 @@ class MainActivity : BaseActivity() {
 
         val root = JSONObject()
 
-        // Match the JSON exported by the user's working v2rayNG_1.5.0 profile.
+        // Keep this JSON as close as possible to the known-good v2rayNG_1.5.0
+        // exported configuration provided by the user. Do not add dns-in/dns-out
+        // or China-direct rules at this stage.
         root.put("dns", JSONObject()
                 .put("hosts", JSONObject().put("domain:googleapis.cn", "googleapis.com"))
                 .put("servers", JSONArray().put("1.1.1.1")))
@@ -404,20 +406,6 @@ class MainActivity : BaseActivity() {
                 .put("protocol", "http")
                 .put("settings", JSONObject().put("userLevel", 8))
                 .put("tag", "http"))
-
-        // Local DNS inbound used by legacy tun2socks when PREF_LOCAL_DNS_ENABLED=true.
-        // This fixes browser DNS failures on VLESS/TCP/XTLS profiles because system
-        // DNS packets are handled by Xray's dns outbound instead of being relayed as
-        // raw UDP through a TCP-only VLESS outbound.
-        inbounds.put(JSONObject()
-                .put("listen", "127.0.0.1")
-                .put("port", 10807)
-                .put("protocol", "dokodemo-door")
-                .put("settings", JSONObject()
-                        .put("address", "1.1.1.1")
-                        .put("port", 53)
-                        .put("network", "tcp,udp"))
-                .put("tag", "dns-in"))
         root.put("inbounds", inbounds)
 
         root.put("log", JSONObject().put("loglevel", "warning"))
@@ -458,9 +446,6 @@ class MainActivity : BaseActivity() {
                 .put("protocol", "blackhole")
                 .put("settings", JSONObject().put("response", JSONObject().put("type", "http")))
                 .put("tag", "block"))
-        outbounds.put(JSONObject()
-                .put("protocol", "dns")
-                .put("tag", "dns-out"))
         root.put("outbounds", outbounds)
 
         root.put("policy", JSONObject()
@@ -473,30 +458,20 @@ class MainActivity : BaseActivity() {
                         .put("statsOutboundUplink", true)
                         .put("statsOutboundDownlink", true)))
 
-        // Keep normal traffic rules empty so all non-DNS traffic uses the default proxy
-        // outbound, but add the minimal local-DNS rules required by legacy tun2socks.
-        val dnsRules = JSONArray()
-        dnsRules.put(JSONObject()
-                .put("type", "field")
-                .put("inboundTag", JSONArray().put("dns-in"))
-                .put("outboundTag", "dns-out"))
-        dnsRules.put(JSONObject()
-                .put("type", "field")
-                .put("port", "53")
-                .put("ip", JSONArray().put("1.1.1.1"))
-                .put("outboundTag", "proxy"))
         root.put("routing", JSONObject()
                 .put("domainStrategy", "IPIfNonMatch")
-                .put("rules", dnsRules))
+                .put("rules", JSONArray()))
         root.put("stats", JSONObject())
         return root.toString(2)
     }
 
     private fun enforceLegacyNetworkPrefs() {
-        // Keep the VPN/DNS behavior close to the working v2rayNG_1.5.0 profile
-        // and avoid stale settings inherited from older test builds.
+        // Match the working v2rayNG_1.5.0 profile behavior:
+        // VPN mode + remote DNS, local DNS disabled. The previous V1.0.10
+        // local-DNS experiment still produced browser DNS failures, so revert
+        // to the known-good export structure and original VPN setup path.
         defaultDPreference.setPrefString(AppConfig.PREF_MODE, "VPN")
-        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, true)
+        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
         defaultDPreference.setPrefString(SettingsActivity.PREF_REMOTE_DNS, "1.1.1.1")
         defaultDPreference.setPrefString(SettingsActivity.PREF_DOMESTIC_DNS, "223.5.5.5")
         defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_MODE, "0")
