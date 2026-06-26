@@ -94,13 +94,13 @@ jobs:
             exit 1
           fi
           echo "Using ARM64 APK: $APK_FILE"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/artifact/DingdangCat_LegacyXTLS_V1.0.17_arm64-v8a.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/artifact/DingdangCat_LegacyXTLS_V1.0.18_arm64-v8a.apk"
           echo "Artifact files:"
           ls -la "$GITHUB_WORKSPACE/artifact"
 
       - name: Upload ARM64 Legacy XTLS APK
         uses: actions/upload-artifact@v4
         with:
-          name: DingdangCat_LegacyXTLS_V1.0.17_arm64_v8a_apk
-          path: artifact/DingdangCat_LegacyXTLS_V1.0.17_arm64-v8a.apk
+          name: DingdangCat_LegacyXTLS_V1.0.18_arm64_v8a_apk
+          path: artifact/DingdangCat_LegacyXTLS_V1.0.18_arm64-v8a.apk
           if-no-files-found: error

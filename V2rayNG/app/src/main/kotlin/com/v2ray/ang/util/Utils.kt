@@ -500,6 +500,51 @@ object Utils {
         return result
     }
 
+
+    /**
+     * Asset path used by the exact v2rayNG_1.5.0 arm64 libgojni.so.
+     * The verified APK calls Libv2ray.initV2Env(Utils.userAssetPath(context)),
+     * not nativeLibraryDir. Passing nativeLibraryDir makes initV2Env hang before runLoop.
+     */
+    fun userAssetPath(context: Context): String {
+        return try {
+            val dir = context.getExternalFilesDir("assets") ?: context.getDir("assets", 0)
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
+            copyAssetIfNeeded(context, "geoip.dat", dir)
+            copyAssetIfNeeded(context, "geosite.dat", dir)
+            dir.absolutePath
+        } catch (e: Throwable) {
+            try {
+                context.getDir("assets", 0).absolutePath
+            } catch (ignored: Throwable) {
+                ""
+            }
+        }
+    }
+
+    private fun copyAssetIfNeeded(context: Context, assetName: String, dir: java.io.File) {
+        try {
+            val outFile = java.io.File(dir, assetName)
+            if (outFile.exists() && outFile.length() > 0) {
+                return
+            }
+            context.assets.open(assetName).use { input ->
+                java.io.FileOutputStream(outFile).use { output ->
+                    val buffer = ByteArray(16 * 1024)
+                    while (true) {
+                        val len = input.read(buffer)
+                        if (len <= 0) break
+                        output.write(buffer, 0, len)
+                    }
+                    output.flush()
+                }
+            }
+        } catch (ignored: Throwable) {
+        }
+    }
+
     /**
      * package path
      */

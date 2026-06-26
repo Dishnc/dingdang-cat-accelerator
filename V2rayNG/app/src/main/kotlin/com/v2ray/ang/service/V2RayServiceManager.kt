@@ -37,12 +37,13 @@ object V2RayServiceManager {
     private const val NOTIFICATION_PENDING_INTENT_STOP_V2RAY = 1
     private const val NOTIFICATION_ICON_THRESHOLD = 3000
 
-    // Create V2RayPoint lazily. The exact arm64 core from the verified v2rayNG_1.5.0 APK
-    // may crash if newV2RayPoint() is called before initV2Env()/Seq.setContext().
+    // Create V2RayPoint lazily, and match the JNI signature used by the verified
+    // v2rayNG_1.5.0 arm64 APK: newV2RayPoint(callback, asyncResolve).
     val v2rayPoint: V2RayPoint by lazy {
         val service = serviceControl?.get()?.getService()
-        markRuntime(service, "lazy newV2RayPoint begin")
-        val point = Libv2ray.newV2RayPoint(V2RayCallback())
+        val asyncResolve = Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1
+        markRuntime(service, "lazy newV2RayPoint begin; asyncResolve=" + asyncResolve)
+        val point = Libv2ray.newV2RayPoint(V2RayCallback(), asyncResolve)
         markRuntime(service, "lazy newV2RayPoint success")
         point
     }
@@ -61,8 +62,9 @@ object V2RayServiceManager {
                 try {
                     markRuntime(context, "before Seq.setContext")
                     Seq.setContext(context)
-                    markRuntime(context, "after Seq.setContext; before Libv2ray.initV2Env")
-                    Libv2ray.initV2Env(context.applicationInfo.nativeLibraryDir + "/")
+                    val assetPath = Utils.userAssetPath(context)
+                    markRuntime(context, "after Seq.setContext; before Libv2ray.initV2Env; assetPath=" + assetPath)
+                    Libv2ray.initV2Env(assetPath)
                     markRuntime(context, "after Libv2ray.initV2Env success")
                 } catch (e: Throwable) {
                     markRuntime(context, "initV2Env failed: " + e.javaClass.name + ": " + (e.message ?: ""))
@@ -189,18 +191,11 @@ object V2RayServiceManager {
             v2rayPoint.configureFileContent = config
             v2rayPoint.domainName = domain
             markRuntime(service, "config assigned; length=" + config.length + "; domain=" + domain + "; localDns=" + localDns)
-            try {
-                v2rayPoint.asyncResolve = localDns
-                markRuntime(service, "asyncResolve assigned")
-            } catch (e: Throwable) {
-                markRuntime(service, "set asyncResolve failed: " + e.javaClass.name + ": " + (e.message ?: ""))
-                Log.d(service.packageName, "set asyncResolve failed: " + e.toString())
-            }
             currentConfigName = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_NAME, "NG")
-            markRuntime(service, "currentConfigName=" + currentConfigName + "; before runLoop")
+            markRuntime(service, "currentConfigName=" + currentConfigName + "; before runLoop; asyncResolve=" + localDns)
 
             try {
-                v2rayPoint.runLoop()
+                v2rayPoint.runLoop(localDns)
                 markRuntime(service, "after runLoop returned; isRunning=" + v2rayPoint.isRunning)
             } catch (e: Throwable) {
                 markRuntime(service, "runLoop threw: " + e.javaClass.name + ": " + (e.message ?: ""))
