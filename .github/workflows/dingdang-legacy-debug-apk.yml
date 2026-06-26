@@ -1,4 +1,4 @@
-name: Dingdang Legacy XTLS Debug APK
+name: Dingdang Legacy XTLS ARM64 Debug APK
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ env:
 
 jobs:
   build-debug-apk:
-    name: Build Legacy XTLS Debug APK
+    name: Build Legacy XTLS ARM64 APK
     runs-on: ubuntu-22.04
 
     steps:
@@ -83,25 +83,24 @@ jobs:
           echo "Searching generated APK files..."
           find "$GITHUB_WORKSPACE/V2rayNG" -name "*.apk" -type f -print || true
 
-      - name: Prepare APK artifact
+      - name: Prepare ARM64 APK artifact
         run: |
           set -e
           mkdir -p "$GITHUB_WORKSPACE/artifact"
-          APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*universal*.apk" -type f | head -n 1)
+          APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*arm64-v8a*.apk" -type f | head -n 1)
           if [ -z "$APK_FILE" ]; then
-            APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*.apk" -type f | head -n 1)
-          fi
-          if [ -z "$APK_FILE" ]; then
-            echo "No APK file found. Build output tree:"
+            echo "No arm64-v8a APK file found. Build output tree:"
             find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs" -maxdepth 6 -type f -print || true
             exit 1
           fi
-          echo "Using APK: $APK_FILE"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/artifact/DingdangCat_LegacyXTLS_V1.0_universal.apk"
+          echo "Using ARM64 APK: $APK_FILE"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/artifact/DingdangCat_LegacyXTLS_V1.0.13_arm64-v8a.apk"
+          echo "Artifact files:"
+          ls -la "$GITHUB_WORKSPACE/artifact"
 
-      - name: Upload Legacy XTLS APK
+      - name: Upload ARM64 Legacy XTLS APK
         uses: actions/upload-artifact@v4
         with:
-          name: DingdangCat_LegacyXTLS_V1.0_universal_apk
-          path: artifact/DingdangCat_LegacyXTLS_V1.0_universal.apk
+          name: DingdangCat_LegacyXTLS_V1.0.13_arm64_v8a_apk
+          path: artifact/DingdangCat_LegacyXTLS_V1.0.13_arm64-v8a.apk
           if-no-files-found: error
