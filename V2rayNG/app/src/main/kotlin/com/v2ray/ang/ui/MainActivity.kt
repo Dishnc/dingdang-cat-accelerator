@@ -473,6 +473,17 @@ class MainActivity : BaseActivity() {
         }
     }
 
+
+    fun showCircle() {
+        btn_connect.isEnabled = false
+        btn_connect.text = "正在加速..."
+    }
+
+    fun hideCircle() {
+        btn_connect.isEnabled = true
+        btn_connect.text = if (mainViewModel.isRunning.value == true) "停止加速" else "一键加速"
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             moveTaskToBack(false)
