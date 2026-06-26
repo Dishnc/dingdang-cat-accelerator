@@ -1,7 +1,8 @@
-DdmNG V1.2.1.7
+DdmNG V1.2.1.8
+
 本次更新：
-1. 修复点击“联系客服”后仍跳转外部网页的问题。
-2. 客服页面强制在 APP 内置 WebView 窗口中打开，普通网页跳转不再离开 APP。
-3. 兼容客服系统 target=_blank / window.open / 新窗口打开行为，强制复用当前 APP 内窗口。
-4. APP 内客服 WebView 增强 JavaScript、DOM Storage、Cookie、混合内容与多窗口支持。
-5. 保持固定 Release 签名、GitHub Actions 自动发布和 arm64-v8a 单 ABI 打包。
+- 优化 APP 内置在线客服窗口为真正全屏容器，减少边缘留白。
+- 适配软键盘弹出时的窗口高度，尽量避免上传、菜单、发送按钮被遮挡。
+- 配合 x-ui V11.1.10 隐藏网页内重复关闭按钮，只保留 APP 顶部关闭按钮。
+- 配合 x-ui V11.1.10 修复上滑查看历史消息时被自动拉回底部的问题。
+- 继续保持固定 Release 签名与 arm64-v8a 单 ABI 打包。
