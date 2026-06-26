@@ -1099,15 +1099,41 @@ class DingdangLoginActivity : AppCompatActivity() {
                 }
 
                 override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
-                    // 部分客服系统会通过 target=_blank / window.open 打开聊天窗口。
-                    // 这里强制把新窗口绑定回当前 APP 内 WebView，避免跳出到系统浏览器。
+                    // 客服智能回复按钮可能使用 target=_blank / window.open 打开购买页或帮助页。
+                    // 不能把已经显示中的 webView 直接塞给 WebViewTransport，否则部分 Android WebView 会崩溃。
+                    // 这里创建一个临时 popup WebView 捕获目标 URL，然后交给统一导航逻辑处理。
                     return try {
                         val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
-                        transport.webView = webView
+                        val popup = WebView(this@DingdangLoginActivity)
+                        popup.settings.javaScriptEnabled = true
+                        popup.settings.domStorageEnabled = true
+                        popup.settings.javaScriptCanOpenWindowsAutomatically = true
+                        popup.webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(popupView: WebView?, url: String?): Boolean {
+                                val handled = handleSupportWebViewNavigation(webView, url)
+                                try { popupView?.stopLoading() } catch (ignored: Throwable) {}
+                                return handled
+                            }
+
+                            override fun shouldOverrideUrlLoading(popupView: WebView?, request: WebResourceRequest?): Boolean {
+                                val handled = handleSupportWebViewNavigation(webView, request?.url?.toString())
+                                try { popupView?.stopLoading() } catch (ignored: Throwable) {}
+                                return handled
+                            }
+
+                            override fun onPageStarted(popupView: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                super.onPageStarted(popupView, url, favicon)
+                                if (!url.isNullOrBlank() && !url.startsWith("about:", true)) {
+                                    handleSupportWebViewNavigation(webView, url)
+                                    try { popupView?.stopLoading() } catch (ignored: Throwable) {}
+                                }
+                            }
+                        }
+                        transport.webView = popup
                         resultMsg.sendToTarget()
                         true
                     } catch (ignored: Throwable) {
-                        false
+                        true
                     }
                 }
             }
@@ -1161,24 +1187,84 @@ class DingdangLoginActivity : AppCompatActivity() {
         if (target.isBlank()) return false
         val lower = target.toLowerCase(Locale.US)
 
-        // 电话、邮件、短信、intent 这类系统协议仍交给系统处理；普通 http/https 永远留在 APP 内 WebView。
-        if (lower.startsWith("tel:") || lower.startsWith("mailto:") || lower.startsWith("sms:") || lower.startsWith("intent:")) {
-            return try {
-                Utils.openUri(this, target)
-                true
-            } catch (ignored: Throwable) {
-                true
-            }
+        // JS、about:blank、data/blob/file 这类 WebView 内部地址不拦截，交给 WebView 自己处理。
+        if (lower.startsWith("javascript:") || lower.startsWith("about:") || lower.startsWith("data:") || lower.startsWith("blob:") || lower.startsWith("file:")) {
+            return false
         }
 
+        // http/https 链接分两类：
+        // 1) /app-support 客服页面自身，继续留在 APP 内 WebView；
+        // 2) 购买页、帮助页、支付页等智能回复按钮链接，交给系统浏览器/对应 App 打开，避免客服 WebView 被跳走或崩溃。
         if (lower.startsWith("http://") || lower.startsWith("https://")) {
-            try {
-                if (view != null && view.url != target) view.loadUrl(target)
-            } catch (ignored: Throwable) {}
+            if (isAppSupportInternalUrl(target)) {
+                try {
+                    if (view != null && view.url != target) view.loadUrl(target)
+                } catch (ignored: Throwable) {}
+            } else {
+                openSupportExternalLink(target)
+            }
             return true
         }
 
-        return false
+        // intent:// 优先按 Android intent 处理；如果没有对应 App，则尝试 browser_fallback_url。
+        if (lower.startsWith("intent:")) {
+            return openSupportIntentLink(target)
+        }
+
+        // 支付宝、微信、market、电话、邮件、短信等自定义协议全部拦截并安全外部打开。
+        openSupportExternalLink(target)
+        return true
+    }
+
+    private fun isAppSupportInternalUrl(rawUrl: String): Boolean {
+        return try {
+            val uri = Uri.parse(rawUrl)
+            val serviceHost = Uri.parse(DEFAULT_SERVICE_BASE).host ?: return false
+            val host = uri.host ?: return false
+            val path = uri.path ?: ""
+            host.equals(serviceHost, true) && (
+                    path == APP_SUPPORT_PATH ||
+                    path.startsWith(APP_SUPPORT_PATH + "/") ||
+                    path.startsWith("/api/support/")
+            )
+        } catch (ignored: Throwable) {
+            false
+        }
+    }
+
+    private fun openSupportIntentLink(rawUrl: String): Boolean {
+        return try {
+            val intent = Intent.parseUri(rawUrl, Intent.URI_INTENT_SCHEME)
+            val fallback = intent.getStringExtra("browser_fallback_url")
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+            } else if (!fallback.isNullOrBlank()) {
+                openSupportExternalLink(fallback)
+            } else {
+                toast("未找到可打开此链接的应用")
+            }
+            true
+        } catch (ignored: Throwable) {
+            toast("链接打开失败，请稍后再试")
+            true
+        }
+    }
+
+    private fun openSupportExternalLink(rawUrl: String): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(rawUrl))
+            intent.addCategory(Intent.CATEGORY_BROWSABLE)
+            startActivity(intent)
+            true
+        } catch (ignored: Throwable) {
+            try {
+                Utils.openUri(this, rawUrl)
+                true
+            } catch (ignored2: Throwable) {
+                toast("链接打开失败，请稍后再试")
+                true
+            }
+        }
     }
 
     private fun openUrl(actionName: String, url: String) {
