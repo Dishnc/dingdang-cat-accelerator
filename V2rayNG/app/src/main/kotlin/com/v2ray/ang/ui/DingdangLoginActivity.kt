@@ -232,9 +232,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_MODE, "0")
         defaultDPreference.setPrefBoolean(SettingsActivity.PREF_PER_APP_PROXY, false)
         defaultDPreference.setPrefBoolean(PerAppProxyActivity.PREF_BYPASS_APPS, false)
-        defaultDPreference.edit()
-                .remove(PerAppProxyActivity.PREF_PER_APP_PROXY_SET)
-                .apply()
+        defaultDPreference.setPrefStringSet(PerAppProxyActivity.PREF_PER_APP_PROXY_SET, HashSet<String>())
         defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "$host:$port")
     }
 
