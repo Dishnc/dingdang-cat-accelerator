@@ -2,7 +2,6 @@ package com.v2ray.ang.ui
 
 import android.os.Bundle
 import android.text.InputType
-import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.*
@@ -14,8 +13,12 @@ import com.v2ray.ang.util.AngConfigManager
 import com.v2ray.ang.util.Utils
 
 /**
- * Minimal VLESS editor restored from the verified APK behavior.
- * This is intentionally small: it only exposes the fields needed by Legacy XTLS.
+ * VLESS editor aligned with the verified v2rayNG 1.5.0 APK form.
+ *
+ * The previous V1.1.2 editor only exposed a minimal subset of fields. That was enough to display
+ * a VLESS page, but it did not prove that the app-side model matched the verified APK's VLESS
+ * configuration path. This editor exposes and saves the same key fields used by the verified APK:
+ * flow, encryption, transport network, camouflage type, host, path, stream security and allowInsecure.
  */
 class Server5Activity : BaseActivity() {
     private lateinit var configs: AngConfig
@@ -26,8 +29,17 @@ class Server5Activity : BaseActivity() {
     private lateinit var etAddress: EditText
     private lateinit var etPort: EditText
     private lateinit var etId: EditText
-    private lateinit var etFlow: EditText
-    private lateinit var etSni: EditText
+    private lateinit var spFlow: Spinner
+    private lateinit var etEncryption: EditText
+    private lateinit var spNetwork: Spinner
+    private lateinit var spHeaderType: Spinner
+    private lateinit var etRequestHost: EditText
+    private lateinit var etPath: EditText
+    private lateinit var spStreamSecurity: Spinner
+    private lateinit var spAllowInsecure: Spinner
+
+    private val flowValues = arrayListOf("", "xtls-rprx-direct")
+    private val allowInsecureValues = arrayListOf("true", "false")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,33 +60,65 @@ class Server5Activity : BaseActivity() {
         val scroll = ScrollView(this)
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
-        root.setPadding(dp(18), dp(18), dp(18), dp(18))
+        root.setPadding(dp(18), dp(14), dp(18), dp(22))
         scroll.addView(root)
 
         etRemarks = addEdit(root, getString(R.string.server_lab_remarks), InputType.TYPE_CLASS_TEXT)
         etAddress = addEdit(root, getString(R.string.server_lab_address), InputType.TYPE_CLASS_TEXT)
         etPort = addEdit(root, getString(R.string.server_lab_port), InputType.TYPE_CLASS_NUMBER)
         etId = addEdit(root, getString(R.string.server_lab_id), InputType.TYPE_CLASS_TEXT)
-        etFlow = addEdit(root, getString(R.string.server_lab_flow), InputType.TYPE_CLASS_TEXT)
-        etSni = addEdit(root, "SNI / serverName（可留空）", InputType.TYPE_CLASS_TEXT)
 
-        val hint = TextView(this)
-        hint.text = "默认：network=tcp, security=xtls, encryption=none, allowInsecure=true, mux=false"
-        hint.gravity = Gravity.CENTER_HORIZONTAL
-        hint.setPadding(0, dp(12), 0, dp(12))
-        root.addView(hint, LinearLayout.LayoutParams(-1, -2))
+        spFlow = addSpinner(root, getString(R.string.server_lab_flow), flowValues)
+        etEncryption = addEdit(root, "加密(encryption)", InputType.TYPE_CLASS_TEXT)
+
+        addSection(root, "底层传输方式(transport)")
+        spNetwork = addResourceSpinner(root, "传输协议(network)", R.array.networks)
+        spHeaderType = addResourceSpinner(root, "伪装类型(type)", R.array.headertypes)
+        etRequestHost = addEdit(root, "伪装域名(host)(host/ws host/h2 host)/QUIC 加密方式", InputType.TYPE_CLASS_TEXT)
+        etPath = addEdit(root, "path(ws path/h2 path)/QUIC 加密密钥/kcp seed", InputType.TYPE_CLASS_TEXT)
+
+        spStreamSecurity = addResourceSpinner(root, "底层传输安全(tls)", R.array.streamsecuritys)
+        spAllowInsecure = addSpinner(root, "跳过证书验证(allowInsecure)", allowInsecureValues)
+
         setContentView(scroll)
+    }
+
+    private fun addSection(root: LinearLayout, label: String) {
+        val tv = TextView(this)
+        tv.text = label
+        tv.textSize = 18f
+        tv.setPadding(0, dp(22), 0, dp(4))
+        root.addView(tv, LinearLayout.LayoutParams(-1, -2))
     }
 
     private fun addEdit(root: LinearLayout, label: String, inputType: Int): EditText {
         val tv = TextView(this)
         tv.text = label
-        tv.setPadding(0, dp(10), 0, dp(2))
+        tv.setPadding(0, dp(12), 0, dp(2))
         root.addView(tv, LinearLayout.LayoutParams(-1, -2))
         val et = EditText(this)
         et.inputType = inputType
+        et.singleLine = true
         root.addView(et, LinearLayout.LayoutParams(-1, -2))
         return et
+    }
+
+    private fun addSpinner(root: LinearLayout, label: String, values: List<String>): Spinner {
+        val tv = TextView(this)
+        tv.text = label
+        tv.setPadding(0, dp(12), 0, dp(2))
+        root.addView(tv, LinearLayout.LayoutParams(-1, -2))
+        val spinner = Spinner(this)
+        val adapter = ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, values)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
+        root.addView(spinner, LinearLayout.LayoutParams(-1, -2))
+        return spinner
+    }
+
+    private fun addResourceSpinner(root: LinearLayout, label: String, arrayId: Int): Spinner {
+        val values = resources.getStringArray(arrayId).toList()
+        return addSpinner(root, label, values)
     }
 
     private fun bindServer(vmess: AngConfig.VmessBean) {
@@ -82,8 +126,14 @@ class Server5Activity : BaseActivity() {
         etAddress.setText(vmess.address)
         etPort.setText(vmess.port.toString())
         etId.setText(vmess.id)
-        etFlow.setText(if (vmess.flow.isBlank()) "xtls-rprx-direct" else vmess.flow)
-        etSni.setText(vmess.requestHost)
+        setSpinnerValue(spFlow, flowValues, if (vmess.flow.isBlank()) "xtls-rprx-direct" else vmess.flow)
+        etEncryption.setText(if (vmess.encryption.isBlank()) "none" else vmess.encryption)
+        setSpinnerValue(spNetwork, resources.getStringArray(R.array.networks).toList(), if (vmess.network.isBlank()) "tcp" else vmess.network)
+        setSpinnerValue(spHeaderType, resources.getStringArray(R.array.headertypes).toList(), if (vmess.headerType.isBlank()) "none" else vmess.headerType)
+        etRequestHost.setText(vmess.requestHost)
+        etPath.setText(vmess.path)
+        setSpinnerValue(spStreamSecurity, resources.getStringArray(R.array.streamsecuritys).toList(), if (vmess.streamSecurity.isBlank()) "xtls" else vmess.streamSecurity)
+        setSpinnerValue(spAllowInsecure, allowInsecureValues, "true")
     }
 
     private fun clearServer() {
@@ -91,8 +141,23 @@ class Server5Activity : BaseActivity() {
         etAddress.setText("")
         etPort.setText("")
         etId.setText("")
-        etFlow.setText("xtls-rprx-direct")
-        etSni.setText("")
+        setSpinnerValue(spFlow, flowValues, "xtls-rprx-direct")
+        etEncryption.setText("none")
+        setSpinnerValue(spNetwork, resources.getStringArray(R.array.networks).toList(), "tcp")
+        setSpinnerValue(spHeaderType, resources.getStringArray(R.array.headertypes).toList(), "none")
+        etRequestHost.setText("")
+        etPath.setText("")
+        setSpinnerValue(spStreamSecurity, resources.getStringArray(R.array.streamsecuritys).toList(), "xtls")
+        setSpinnerValue(spAllowInsecure, allowInsecureValues, "true")
+    }
+
+    private fun setSpinnerValue(spinner: Spinner, values: List<String>, value: String) {
+        val idx = values.indexOf(value)
+        spinner.setSelection(if (idx >= 0) idx else 0)
+    }
+
+    private fun selected(spinner: Spinner): String {
+        return spinner.selectedItem?.toString()?.trim() ?: ""
     }
 
     private fun saveServer(): Boolean {
@@ -104,13 +169,13 @@ class Server5Activity : BaseActivity() {
         bean.id = etId.text.toString().trim()
         bean.alterId = 0
         bean.security = "auto"
-        bean.network = "tcp"
-        bean.headerType = "none"
-        bean.requestHost = etSni.text.toString().trim()
-        bean.path = ""
-        bean.streamSecurity = "xtls"
-        bean.flow = etFlow.text.toString().trim().ifBlank { "xtls-rprx-direct" }
-        bean.encryption = "none"
+        bean.network = selected(spNetwork).ifBlank { "tcp" }
+        bean.headerType = selected(spHeaderType).ifBlank { "none" }
+        bean.requestHost = etRequestHost.text.toString().trim()
+        bean.path = etPath.text.toString().trim()
+        bean.streamSecurity = selected(spStreamSecurity).ifBlank { "xtls" }
+        bean.flow = selected(spFlow).ifBlank { if (bean.streamSecurity == "xtls") "xtls-rprx-direct" else "" }
+        bean.encryption = etEncryption.text.toString().trim().ifBlank { "none" }
         bean.configVersion = 2
 
         if (bean.address.isBlank() || bean.port <= 0 || bean.id.isBlank()) {

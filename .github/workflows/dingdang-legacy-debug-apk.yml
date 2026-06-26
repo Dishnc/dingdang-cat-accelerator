@@ -1,4 +1,4 @@
-name: Dingdang Legacy XTLS V1.1.2 ARM64 APK
+name: Dingdang Legacy XTLS V1.1.3 ARM64 APK
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ env:
 
 jobs:
   build-debug-apk:
-    name: Build Dingdang V1.1.2 APK Reverse VLESS Runtime
+    name: Build Dingdang V1.1.3 APK Reverse VLESS Runtime
     runs-on: ubuntu-22.04
 
     steps:
@@ -70,12 +70,12 @@ jobs:
             find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs" -maxdepth 6 -type f -print || true
             exit 1
           fi
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/artifact/DingdangCat_LegacyXTLS_V1.1.2_apk_reverse_vless_runtime_arm64-v8a.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/artifact/DingdangCat_LegacyXTLS_V1.1.3_full_vless_editor_alignment_arm64-v8a.apk"
           ls -la "$GITHUB_WORKSPACE/artifact"
 
       - name: Upload ARM64 Legacy XTLS APK
         uses: actions/upload-artifact@v4
         with:
-          name: DingdangCat_LegacyXTLS_V1.1.2_apk_reverse_vless_runtime_arm64_v8a_apk
-          path: artifact/DingdangCat_LegacyXTLS_V1.1.2_apk_reverse_vless_runtime_arm64-v8a.apk
+          name: DingdangCat_LegacyXTLS_V1.1.3_full_vless_editor_alignment_arm64_v8a_apk
+          path: artifact/DingdangCat_LegacyXTLS_V1.1.3_full_vless_editor_alignment_arm64-v8a.apk
           if-no-files-found: error
