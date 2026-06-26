@@ -506,13 +506,11 @@ class DingdangLoginActivity : AppCompatActivity() {
         return GsonBuilder().setPrettyPrinting().create().toJson(root)
     }
 
-        private fun resolveServiceBase(): String {
+    private fun resolveServiceBase(): String {
         val configured = DEFAULT_SERVICE_BASE.trim().trimEnd('/')
-        if (configured.isNotEmpty()) {
+        if (configured.isNotEmpty() && !configured.contains("https://buy.aisuper.top") && !configured.contains("CHANGE_ME")) {
             return configured
         }
-        return defaultDPreference.getPrefString(PREF_DDCAT_SERVICE, "").trim().trimEnd('/')
-    }
         return defaultDPreference.getPrefString(PREF_DDCAT_SERVICE, "").trim().trimEnd('/')
     }
 
