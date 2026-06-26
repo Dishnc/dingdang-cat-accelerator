@@ -26,6 +26,7 @@ import java.net.URL
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.LinkedHashSet
 import java.util.Locale
 
 class MainActivity : BaseActivity() {
@@ -265,7 +266,8 @@ class MainActivity : BaseActivity() {
         val network = readString(json, "network")
         val security = readString(json, "security")
         val flow = readString(json, "flow")
-        val sni = readSni(json)
+        // Legacy XTLS successful v2rayNG 1.5.0 exports keep SNI/serverName empty.
+        val sni = ""
 
         lastStatusActive = status.equals("active", true) || statusText == "正常"
         lastRemainGb = remain
@@ -302,10 +304,11 @@ class MainActivity : BaseActivity() {
             vmess.address = host
             vmess.port = port
             vmess.id = uuid
-            vmess.network = readString(json, "network").ifBlank { "tcp" }
-            vmess.streamSecurity = readString(json, "security").ifBlank { "xtls" }
-            vmess.requestHost = readSni(json)
-            vmess.security = "none"
+            // Match the known-good v2rayNG 1.5.0 Legacy XTLS profile.
+            vmess.network = "tcp"
+            vmess.streamSecurity = "xtls"
+            vmess.requestHost = ""
+            vmess.security = "auto"
             vmess.alterId = 0
             vmess.headerType = "none"
 
@@ -337,6 +340,20 @@ class MainActivity : BaseActivity() {
             defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG, configJson)
             defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_GUID, PREF_DDCAT_CONFIG_GUID)
             defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_NAME, DEFAULT_REMARK)
+
+            // The legacy libv2ray VPN layer needs the remote server domain/IP:port
+            // so the core connection itself is protected from being routed back into the VPN.
+            val serverDomain = if (Utils.isIpv6Address(vmess.address)) {
+                "[${vmess.address}]:${vmess.port}"
+            } else {
+                "${vmess.address}:${vmess.port}"
+            }
+            defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, serverDomain)
+            val tags = LinkedHashSet<String>()
+            tags.add("proxy")
+            tags.add("direct")
+            tags.add("block")
+            defaultDPreference.setPrefStringOrderedSet(AppConfig.PREF_CURR_CONFIG_OUTBOUND_TAGS, tags)
             true
         } catch (e: Throwable) {
             tv_login_message.text = "线路保存失败：${e.message ?: e.javaClass.simpleName}"
@@ -348,80 +365,92 @@ class MainActivity : BaseActivity() {
         val host = readString(json, "host_address")
         val port = readInt(json, "port")
         val uuid = readString(json, "uuid")
-        val network = readString(json, "network").ifBlank { "tcp" }
-        val security = readString(json, "security").ifBlank { "xtls" }
         val flow = readString(json, "flow").ifBlank { "xtls-rprx-direct" }
-        val sni = readSni(json)
 
         val root = JSONObject()
-        root.put("stats", JSONObject())
-        root.put("log", JSONObject().put("loglevel", "warning"))
-        root.put("policy", JSONObject()
-                .put("levels", JSONObject().put("8", JSONObject()
-                        .put("handshake", 4)
-                        .put("connIdle", 300)
-                        .put("uplinkOnly", 1)
-                        .put("downlinkOnly", 1)))
-                .put("system", JSONObject()
-                        .put("statsOutboundUplink", true)
-                        .put("statsOutboundDownlink", true)))
+
+        // Match the JSON exported by the user's working v2rayNG_1.5.0 profile.
+        root.put("dns", JSONObject()
+                .put("hosts", JSONObject().put("domain:googleapis.cn", "googleapis.com"))
+                .put("servers", JSONArray().put("1.1.1.1")))
 
         val inbounds = JSONArray()
         inbounds.put(JSONObject()
-                .put("tag", "socks")
+                .put("listen", "127.0.0.1")
                 .put("port", 10808)
-                .put("listen", "127.0.0.1")
                 .put("protocol", "socks")
-                .put("settings", JSONObject().put("auth", "noauth").put("udp", true).put("userLevel", 8))
-                .put("sniffing", JSONObject().put("enabled", true).put("destOverride", JSONArray().put("http").put("tls"))))
+                .put("settings", JSONObject()
+                        .put("auth", "noauth")
+                        .put("udp", true)
+                        .put("userLevel", 8))
+                .put("sniffing", JSONObject()
+                        .put("destOverride", JSONArray().put("http").put("tls"))
+                        .put("enabled", true))
+                .put("tag", "socks"))
         inbounds.put(JSONObject()
-                .put("tag", "http")
-                .put("port", 10809)
                 .put("listen", "127.0.0.1")
+                .put("port", 10809)
                 .put("protocol", "http")
-                .put("settings", JSONObject().put("userLevel", 8)))
+                .put("settings", JSONObject().put("userLevel", 8))
+                .put("tag", "http"))
         root.put("inbounds", inbounds)
 
+        root.put("log", JSONObject().put("loglevel", "warning"))
+
         val user = JSONObject()
-                .put("id", uuid)
+                .put("alterId", 0)
                 .put("encryption", "none")
                 .put("flow", flow)
+                .put("id", uuid)
                 .put("level", 8)
+                .put("security", "auto")
         val settings = JSONObject().put("vnext", JSONArray().put(JSONObject()
                 .put("address", host)
                 .put("port", port)
                 .put("users", JSONArray().put(user))))
 
         val stream = JSONObject()
-                .put("network", network)
-                .put("security", security)
-                .put("tcpSettings", JSONObject().put("header", JSONObject().put("type", "none")))
-        if (security.equals("xtls", true)) {
-            val xtls = JSONObject().put("allowInsecure", true)
-            if (sni.isNotBlank()) xtls.put("serverName", sni)
-            stream.put("xtlsSettings", xtls)
-        } else if (security.equals("tls", true)) {
-            val tls = JSONObject().put("allowInsecure", true)
-            if (sni.isNotBlank()) tls.put("serverName", sni)
-            stream.put("tlsSettings", tls)
-        }
+                .put("network", "tcp")
+                .put("security", "xtls")
+                .put("xtlsSettings", JSONObject()
+                        .put("allowInsecure", true)
+                        .put("serverName", ""))
 
         val outbounds = JSONArray()
         outbounds.put(JSONObject()
-                .put("tag", "proxy")
+                .put("mux", JSONObject()
+                        .put("concurrency", -1)
+                        .put("enabled", false))
                 .put("protocol", "vless")
                 .put("settings", settings)
                 .put("streamSettings", stream)
-                .put("mux", JSONObject().put("enabled", false)))
-        outbounds.put(JSONObject().put("protocol", "freedom").put("settings", JSONObject()).put("tag", "direct"))
-        outbounds.put(JSONObject().put("protocol", "blackhole").put("tag", "block").put("settings", JSONObject().put("response", JSONObject().put("type", "http"))))
+                .put("tag", "proxy"))
+        outbounds.put(JSONObject()
+                .put("protocol", "freedom")
+                .put("settings", JSONObject())
+                .put("tag", "direct"))
+        outbounds.put(JSONObject()
+                .put("protocol", "blackhole")
+                .put("settings", JSONObject().put("response", JSONObject().put("type", "http")))
+                .put("tag", "block"))
         root.put("outbounds", outbounds)
 
-        val rules = JSONArray()
-        rules.put(JSONObject().put("type", "field").put("outboundTag", "direct").put("domain", JSONArray().put("geosite:private").put("geosite:cn")))
-        rules.put(JSONObject().put("type", "field").put("outboundTag", "direct").put("ip", JSONArray().put("geoip:private").put("geoip:cn")))
-        root.put("routing", JSONObject().put("domainStrategy", "IPIfNonMatch").put("rules", rules))
-        root.put("dns", JSONObject().put("hosts", JSONObject().put("domain:googleapis.cn", "googleapis.com")).put("servers", JSONArray().put("1.1.1.1").put("223.5.5.5")))
+        root.put("policy", JSONObject()
+                .put("levels", JSONObject().put("8", JSONObject()
+                        .put("connIdle", 300)
+                        .put("downlinkOnly", 1)
+                        .put("handshake", 4)
+                        .put("uplinkOnly", 1)))
+                .put("system", JSONObject()
+                        .put("statsOutboundUplink", true)
+                        .put("statsOutboundDownlink", true)))
+
+        // Keep rules empty first, exactly like the known-good v2rayNG 1.5.0 export.
+        // After connectivity is confirmed, China-direct routing can be added as an optional mode.
+        root.put("routing", JSONObject()
+                .put("domainStrategy", "IPIfNonMatch")
+                .put("rules", JSONArray()))
+        root.put("stats", JSONObject())
         return root.toString(2)
     }
 
