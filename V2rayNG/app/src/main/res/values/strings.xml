@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">叮当猫加速器</string>
     <string name="app_widget_name">Switch</string>
-    <string name="app_tile_name">叮当猫加速器</string>
+    <string name="app_tile_name">Switch</string>
     <string name="app_tile_first_use">First use of this feature, please use the app to add server</string>
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>

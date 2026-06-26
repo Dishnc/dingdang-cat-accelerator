@@ -37,16 +37,7 @@ object V2RayServiceManager {
     private const val NOTIFICATION_PENDING_INTENT_STOP_V2RAY = 1
     private const val NOTIFICATION_ICON_THRESHOLD = 3000
 
-    // Create V2RayPoint lazily, and match the JNI signature used by the verified
-    // v2rayNG_1.5.0 arm64 APK: newV2RayPoint(callback, asyncResolve).
-    val v2rayPoint: V2RayPoint by lazy {
-        val service = serviceControl?.get()?.getService()
-        val asyncResolve = Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1
-        markRuntime(service, "lazy newV2RayPoint begin; asyncResolve=" + asyncResolve)
-        val point = Libv2ray.newV2RayPoint(V2RayCallback(), asyncResolve)
-        markRuntime(service, "lazy newV2RayPoint success")
-        point
-    }
+    val v2rayPoint: V2RayPoint = Libv2ray.newV2RayPoint(V2RayCallback())
     private val mMsgReceive = ReceiveMessageHandler()
 
     var serviceControl: SoftReference<ServiceControl>? = null
@@ -54,42 +45,12 @@ object V2RayServiceManager {
             field = value
             val context = value?.get()?.getService()?.applicationContext
             context?.let {
-                markRuntime(it, "serviceControl set; nativeLibraryDir=" + it.applicationInfo.nativeLibraryDir)
-                // Exact arm64 v2rayNG_1.5.0 core compatibility:
-                // the release libgojni.so uses initV2Env/asyncResolve and does NOT
-                // export packageName/packageCodePath/enableLocalDNS/forwardIpv6/proxyOnly
-                // JNI setters. Calling those old setters with this core causes a crash.
-                try {
-                    markRuntime(context, "before Seq.setContext")
-                    Seq.setContext(context)
-                    val assetPath = Utils.userAssetPath(context)
-                    markRuntime(context, "after Seq.setContext; before Libv2ray.initV2Env; assetPath=" + assetPath)
-                    Libv2ray.initV2Env(assetPath)
-                    markRuntime(context, "after Libv2ray.initV2Env success")
-                } catch (e: Throwable) {
-                    markRuntime(context, "initV2Env failed: " + e.javaClass.name + ": " + (e.message ?: ""))
-                    Log.d(AppConfig.ANG_PACKAGE, "initV2Env failed: " + e.toString())
-                }
+                v2rayPoint.packageName = Utils.packagePath(context)
+                v2rayPoint.packageCodePath = context.applicationInfo.nativeLibraryDir + "/"
+                Seq.setContext(context)
             }
         }
     var currentConfigName = "NG"
-
-    private const val DDCAT_RUNTIME_DIAG = "ddcat_runtime_diag"
-    private const val DDCAT_RUNTIME_CRASH_MARK = "ddcat_runtime_crash_mark"
-
-    private fun markRuntime(context: Context?, step: String) {
-        if (context == null) return
-        try {
-            val prefs = context.defaultDPreference
-            val old = prefs.getPrefString(DDCAT_RUNTIME_DIAG, "")
-            val line = System.currentTimeMillis().toString() + " | " + step
-            val merged = (old + "\n" + line).takeLast(12000)
-            prefs.setPrefString(DDCAT_RUNTIME_DIAG, merged)
-            prefs.setPrefString(DDCAT_RUNTIME_CRASH_MARK, step)
-            Log.d(AppConfig.ANG_PACKAGE, "DDCAT_RUNTIME: $step")
-        } catch (ignored: Throwable) {
-        }
-    }
 
     private var lastQueryTime = 0L
     private var mBuilder: NotificationCompat.Builder? = null
@@ -97,25 +58,15 @@ object V2RayServiceManager {
     private var mNotificationManager: NotificationManager? = null
 
     fun startV2Ray(context: Context, mode: String) {
-        markRuntime(context, "V2RayServiceManager.startV2Ray entered; mode=" + mode)
         val intent = if (mode == "VPN") {
             Intent(context.applicationContext, V2RayVpnService::class.java)
         } else {
             Intent(context.applicationContext, V2RayProxyOnlyService::class.java)
         }
-        try {
-            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
-                markRuntime(context, "before context.startForegroundService")
-                context.startForegroundService(intent)
-                markRuntime(context, "after context.startForegroundService returned")
-            } else {
-                markRuntime(context, "before context.startService")
-                context.startService(intent)
-                markRuntime(context, "after context.startService returned")
-            }
-        } catch (e: Throwable) {
-            markRuntime(context, "start service threw: " + e.javaClass.name + ": " + (e.message ?: ""))
-            throw e
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
         }
     }
 
@@ -150,18 +101,13 @@ object V2RayServiceManager {
         override fun setup(s: String): Long {
             val serviceControl = serviceControl?.get() ?: return -1
             //Logger.d(s)
-            val service = serviceControl.getService()
-            markRuntime(service, "callback setup received; length=" + s.length + "; preview=" + s.take(180).replace("\n", " "))
             return try {
-                markRuntime(service, "before serviceControl.startService(setup)")
                 serviceControl.startService(s)
-                markRuntime(service, "after serviceControl.startService(setup) success")
                 lastQueryTime = System.currentTimeMillis()
                 startSpeedNotification()
                 0
-            } catch (e: Throwable) {
-                markRuntime(service, "setup failed: " + e.javaClass.name + ": " + (e.message ?: ""))
-                Log.d(service.packageName, e.toString())
+            } catch (e: Exception) {
+                Log.d(serviceControl.getService().packageName, e.toString())
                 -1
             }
         }
@@ -170,7 +116,6 @@ object V2RayServiceManager {
 
     fun startV2rayPoint() {
         val service = serviceControl?.get()?.getService() ?: return
-        markRuntime(service, "startV2rayPoint entered; isRunning=" + v2rayPoint.isRunning)
         if (!v2rayPoint.isRunning) {
 
             try {
@@ -179,36 +124,27 @@ object V2RayServiceManager {
                 mFilter.addAction(Intent.ACTION_SCREEN_OFF)
                 mFilter.addAction(Intent.ACTION_USER_PRESENT)
                 service.registerReceiver(mMsgReceive, mFilter)
-                markRuntime(service, "broadcast receiver registered")
-            } catch (e: Throwable) {
-                markRuntime(service, "registerReceiver failed: " + e.javaClass.name + ": " + (e.message ?: ""))
+            } catch (e: Exception) {
                 Log.d(service.packageName, e.toString())
             }
 
-            val config = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
-            val domain = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "")
-            val localDns = service.defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
-            v2rayPoint.configureFileContent = config
-            v2rayPoint.domainName = domain
-            markRuntime(service, "config assigned; length=" + config.length + "; domain=" + domain + "; localDns=" + localDns)
+            v2rayPoint.configureFileContent = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
+            v2rayPoint.enableLocalDNS = service.defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
+            v2rayPoint.forwardIpv6 = service.defaultDPreference.getPrefBoolean(SettingsActivity.PREF_FORWARD_IPV6, false)
+            v2rayPoint.domainName = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "")
+            v2rayPoint.proxyOnly = service.defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN") != "VPN"
             currentConfigName = service.defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG_NAME, "NG")
-            markRuntime(service, "currentConfigName=" + currentConfigName + "; before runLoop; asyncResolve=" + localDns)
 
             try {
-                v2rayPoint.runLoop(localDns)
-                markRuntime(service, "after runLoop returned; isRunning=" + v2rayPoint.isRunning)
-            } catch (e: Throwable) {
-                markRuntime(service, "runLoop threw: " + e.javaClass.name + ": " + (e.message ?: ""))
+                v2rayPoint.runLoop()
+            } catch (e: Exception) {
                 Log.d(service.packageName, e.toString())
             }
 
             if (v2rayPoint.isRunning) {
-                markRuntime(service, "start success; notification show")
-                service.defaultDPreference.setPrefString(DDCAT_RUNTIME_CRASH_MARK, "start success")
                 MessageUtil.sendMsg2UI(service, AppConfig.MSG_STATE_START_SUCCESS, "")
                 showNotification()
             } else {
-                markRuntime(service, "start failure; v2rayPoint.isRunning=false")
                 MessageUtil.sendMsg2UI(service, AppConfig.MSG_STATE_START_FAILURE, "")
                 cancelNotification()
             }
@@ -217,7 +153,6 @@ object V2RayServiceManager {
 
     fun stopV2rayPoint() {
         val service = serviceControl?.get()?.getService() ?: return
-        markRuntime(service, "stopV2rayPoint entered; isRunning=" + v2rayPoint.isRunning)
 
         if (v2rayPoint.isRunning) {
             try {

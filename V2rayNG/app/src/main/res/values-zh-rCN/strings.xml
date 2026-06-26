@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">叮当猫加速器</string>
+    <string name="app_name">v2rayNG</string>
     <string name="app_widget_name">开关</string>
-    <string name="app_tile_name">叮当猫加速器</string>
+    <string name="app_tile_name">开关</string>
     <string name="app_tile_first_use">初次使用此功能请先用APP添加配置</string>
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>

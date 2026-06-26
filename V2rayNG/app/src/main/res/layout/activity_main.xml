@@ -1,355 +1,133 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<android.support.v4.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/drawer_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_ddcat_shell"
-    android:orientation="vertical">
+    android:fitsSystemWindows="true">
 
-    <android.support.v7.widget.Toolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="64dp"
-        android:background="#071327"
-        app:titleTextColor="#EAF7FF"
-        app:title="叮当猫加速器" />
-
-    <ScrollView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true">
+        android:orientation="vertical">
 
-        <LinearLayout
+        <android.support.design.widget.AppBarLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingLeft="22dp"
-            android:paddingRight="22dp"
-            android:paddingTop="24dp"
-            android:paddingBottom="32dp">
+            android:theme="@style/AppTheme.AppBarOverlay">
 
-            <ImageView
-                android:layout_width="92dp"
-                android:layout_height="92dp"
-                android:layout_gravity="center_horizontal"
-                android:src="@mipmap/ic_launcher"
-                android:scaleType="centerCrop" />
-
-            <TextView
+            <android.support.v7.widget.Toolbar
+                android:id="@+id/toolbar"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:text="叮当猫加速器"
-                android:textColor="#F3FAFF"
-                android:textSize="30sp"
-                android:textStyle="bold"
-                android:layout_marginTop="18dp" />
+                android:layout_height="?attr/actionBarSize"
+                android:background="?attr/colorPrimary"
+                app:popupTheme="@style/AppTheme.PopupOverlay" />
 
-            <TextView
+        </android.support.design.widget.AppBarLayout>
+
+        <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            xmlns:tools="http://schemas.android.com/tools"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fitsSystemWindows="true"
+            tools:context=".ui.MainActivity">
+
+            <android.support.design.widget.CoordinatorLayout
+                android:id="@+id/main_content"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:text="安全 · 稳定 · 高效"
-                android:textColor="#80E9FF"
-                android:textSize="18sp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="26dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@drawable/bg_ddcat_card"
-                android:padding="18dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="邮箱登录"
-                    android:textColor="#F3FAFF"
-                    android:textSize="24sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="服务地址"
-                    android:textColor="#9AAFC9"
-                    android:textSize="16sp"
-                    android:layout_marginTop="16dp" />
-
-                <EditText
-                    android:id="@+id/input_api_base_url"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:background="@drawable/bg_ddcat_input"
-                    android:hint="https://你的域名"
-                    android:singleLine="true"
-                    android:inputType="textUri"
-                    android:textColor="#FFFFFF"
-                    android:textColorHint="#6F829C"
-                    android:textSize="18sp"
-                    android:layout_marginTop="8dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="邮箱账号"
-                    android:textColor="#9AAFC9"
-                    android:textSize="16sp"
-                    android:layout_marginTop="16dp" />
-
-                <EditText
-                    android:id="@+id/input_email"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:background="@drawable/bg_ddcat_input"
-                    android:hint="user@example.com"
-                    android:singleLine="true"
-                    android:inputType="textEmailAddress"
-                    android:textColor="#FFFFFF"
-                    android:textColorHint="#6F829C"
-                    android:textSize="18sp"
-                    android:layout_marginTop="8dp" />
+                android:layout_height="match_parent">
 
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="18dp">
+                    android:layout_height="match_parent"
+                    android:orientation="vertical">
 
-                    <Button
-                        android:id="@+id/btn_login"
-                        android:layout_width="0dp"
-                        android:layout_height="52dp"
-                        android:layout_weight="2"
-                        android:background="@drawable/bg_ddcat_secondary_button"
-                        android:text="登录 / 查询账号"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                    <android.support.v7.widget.RecyclerView
+                        android:id="@+id/recycler_view"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1" />
 
-                    <Space
-                        android:layout_width="12dp"
-                        android:layout_height="1dp" />
+                    <LinearLayout
+                        android:id="@+id/layout_test"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/connection_test_height"
+                        android:background="@drawable/background_test_button"
+                        android:gravity="center|left"
+                        android:clickable="true"
+                        android:focusable="true">
 
-                    <Button
-                        android:id="@+id/btn_refresh"
-                        android:layout_width="0dp"
-                        android:layout_height="52dp"
-                        android:layout_weight="1"
-                        android:background="@drawable/bg_ddcat_secondary_button"
-                        android:text="刷新"
-                        android:textColor="#C9F8FF"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                        <TextView
+                            android:id="@+id/tv_test_state"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:maxLines="2"
+                            android:minLines="1"
+                            android:paddingStart="16dp"
+                            android:text="@string/connection_test_pending"
+                            android:textAppearance="@style/TextAppearance.AppCompat.Small"
+                            android:textColor="@color/colorPrimary_light" />
+
+
+                    </LinearLayout>
                 </LinearLayout>
 
-                <TextView
-                    android:id="@+id/tv_login_message"
-                    android:layout_width="match_parent"
+
+                <com.github.jorgecastilloprz.FABProgressCircle
+                    android:id="@+id/fabProgressCircle"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="请输入服务地址和邮箱，登录后自动获取专属线路。"
-                    android:textColor="#9AAFC9"
-                    android:textSize="15sp"
-                    android:layout_marginTop="14dp" />
-            </LinearLayout>
+                    android:layout_marginBottom="24dp"
+                    android:layout_gravity="bottom|end">
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@drawable/bg_ddcat_card"
-                android:padding="18dp"
-                android:layout_marginTop="20dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <View
-                        android:id="@+id/status_dot"
-                        android:layout_width="12dp"
-                        android:layout_height="12dp"
-                        android:background="@drawable/bg_ddcat_status_dot_off" />
-
-                    <TextView
-                        android:id="@+id/tv_connection_state"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginLeft="12dp"
-                        android:text="当前状态：未加速"
-                        android:textColor="#F3FAFF"
-                        android:textSize="24sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tv_line_tag"
+                    <android.support.design.widget.FloatingActionButton
+                        android:id="@+id/fab"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:background="@drawable/bg_ddcat_tag"
-                        android:paddingLeft="12dp"
-                        android:paddingRight="12dp"
-                        android:paddingTop="5dp"
-                        android:paddingBottom="5dp"
-                        android:text="待登录"
-                        android:textColor="#BFF7FF"
-                        android:textSize="15sp" />
-                </LinearLayout>
+                        android:layout_alignParentBottom="true"
+                        android:layout_alignParentEnd="true"
+                        android:layout_gravity="bottom|end"
+                        android:layout_marginBottom="16dp"
+                        android:layout_marginRight="16dp"
+                        android:layout_marginLeft="16dp"
+                        android:layout_marginTop="16dp"
+                        android:src="@drawable/ic_v_idle"
+                        android:clickable="true"
+                        android:focusable="true"
+                        app:layout_anchorGravity="bottom|right|end" />
 
-                <TextView
-                    android:id="@+id/tv_connection_hint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="登录成功后会自动准备旧 XTLS 兼容线路。"
-                    android:textColor="#9AAFC9"
-                    android:textSize="17sp"
-                    android:lineSpacingExtra="4dp"
-                    android:layout_marginTop="16dp" />
+                </com.github.jorgecastilloprz.FABProgressCircle>
+            </android.support.design.widget.CoordinatorLayout>
+        </RelativeLayout>
+    </LinearLayout>
 
-                <Button
-                    android:id="@+id/btn_connect"
-                    android:layout_width="match_parent"
-                    android:layout_height="58dp"
-                    android:layout_marginTop="22dp"
-                    android:background="@drawable/bg_ddcat_primary_button"
-                    android:text="一键加速"
-                    android:textColor="#FFFFFF"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
+    <android.support.design.widget.NavigationView
+        android:id="@+id/nav_view"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        app:headerLayout="@layout/nav_header"
+        app:itemIconTint="@color/colorPrimary_dark"
+        app:itemTextColor="@color/colorPrimary"
+        app:menu="@menu/menu_drawer" >
 
-            <LinearLayout
+        <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@drawable/bg_ddcat_card"
-                android:padding="18dp"
-                android:layout_marginTop="20dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="账号信息"
-                    android:textColor="#F3FAFF"
-                    android:textSize="24sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tv_account_email"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="账号：未登录"
-                    android:textColor="#DCEBFF"
-                    android:textSize="17sp"
-                    android:layout_marginTop="18dp" />
-
-                <TextView
-                    android:id="@+id/tv_account_status"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="套餐状态：待登录后查看"
-                    android:textColor="#DCEBFF"
-                    android:textSize="17sp"
-                    android:layout_marginTop="10dp" />
-
-                <TextView
-                    android:id="@+id/tv_expire_time"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="到期时间：--"
-                    android:textColor="#DCEBFF"
-                    android:textSize="17sp"
-                    android:layout_marginTop="10dp" />
-
-                <TextView
-                    android:id="@+id/tv_traffic_usage"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="流量使用：-- / --"
-                    android:textColor="#DCEBFF"
-                    android:textSize="17sp"
-                    android:layout_marginTop="10dp" />
-
-                <TextView
-                    android:id="@+id/tv_traffic_remain"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="剩余流量：--"
-                    android:textColor="#DCEBFF"
-                    android:textSize="17sp"
-                    android:layout_marginTop="10dp" />
-
-                <TextView
-                    android:id="@+id/tv_line_info"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_ddcat_tag"
-                    android:padding="12dp"
-                    android:text="线路信息：待登录后查看"
-                    android:textColor="#BFF7FF"
-                    android:textSize="16sp"
-                    android:lineSpacingExtra="4dp"
-                    android:layout_marginTop="16dp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center"
-                android:layout_marginTop="22dp">
-
-                <Button
-                    android:id="@+id/btn_renew"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_ddcat_secondary_button"
-                    android:text="套餐续费"
-                    android:textColor="#C9F8FF"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <Space android:layout_width="12dp" android:layout_height="1dp" />
-
-                <Button
-                    android:id="@+id/btn_order"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_ddcat_secondary_button"
-                    android:text="在线下单"
-                    android:textColor="#C9F8FF"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <Space android:layout_width="12dp" android:layout_height="1dp" />
-
-                <Button
-                    android:id="@+id/btn_service"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_ddcat_secondary_button"
-                    android:text="联系客服"
-                    android:textColor="#C9F8FF"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
+                android:layout_gravity="bottom"
+                android:background="@color/white"
+                android:padding="14dp">
 
             <TextView
-                android:id="@+id/tv_footer_version"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:text="LegacyXTLS V1.0 · 基于 v2rayNG 1.5.0"
-                android:textColor="#6F829C"
-                android:textSize="15sp"
-                android:layout_marginTop="24dp" />
+                    android:id="@+id/version"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:textColor="@color/accent" />
         </LinearLayout>
-    </ScrollView>
-</LinearLayout>
+    </android.support.design.widget.NavigationView>
+
+</android.support.v4.widget.DrawerLayout>
+

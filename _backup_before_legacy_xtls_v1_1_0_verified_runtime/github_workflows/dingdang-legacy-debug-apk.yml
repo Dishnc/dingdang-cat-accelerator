@@ -1,0 +1,106 @@
+name: Dingdang Legacy XTLS ARM64 Debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+jobs:
+  build-debug-apk:
+    name: Build Legacy XTLS ARM64 APK
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 for Android SDK tools
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Show SDK Java environment
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME"
+          java -version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          if [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --version || true
+          fi
+
+      - name: Prepare Android SDK packages
+        run: |
+          set -e
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager)"
+          fi
+          echo "Using sdkmanager: $SDKMANAGER"
+          java -version
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" \
+            "platform-tools" \
+            "platforms;android-30" \
+            "build-tools;30.0.2"
+
+      - name: Set up JDK 8 for legacy Gradle build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 8
+
+      - name: Show Gradle Java environment
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME"
+          java -version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "Project tree:"
+          ls -la "$GITHUB_WORKSPACE"
+          ls -la "$GITHUB_WORKSPACE/V2rayNG"
+          ls -la "$GITHUB_WORKSPACE/V2rayNG/app/libs" || true
+
+      - name: Build Debug APK
+        run: |
+          set -e
+          cd "$GITHUB_WORKSPACE/V2rayNG"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+          ./gradlew --no-daemon clean assembleDebug --stacktrace --info
+
+      - name: Locate APK files
+        if: always()
+        run: |
+          echo "Searching generated APK files..."
+          find "$GITHUB_WORKSPACE/V2rayNG" -name "*.apk" -type f -print || true
+
+      - name: Prepare ARM64 APK artifact
+        run: |
+          set -e
+          mkdir -p "$GITHUB_WORKSPACE/artifact"
+          APK_FILE=$(find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs/apk" -name "*arm64-v8a*.apk" -type f | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "No arm64-v8a APK file found. Build output tree:"
+            find "$GITHUB_WORKSPACE/V2rayNG/app/build/outputs" -maxdepth 6 -type f -print || true
+            exit 1
+          fi
+          echo "Using ARM64 APK: $APK_FILE"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/artifact/DingdangCat_LegacyXTLS_V1.0.19_arm64-v8a.apk"
+          echo "Artifact files:"
+          ls -la "$GITHUB_WORKSPACE/artifact"
+
+      - name: Upload ARM64 Legacy XTLS APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DingdangCat_LegacyXTLS_V1.0.19_arm64_v8a_apk
+          path: artifact/DingdangCat_LegacyXTLS_V1.0.19_arm64-v8a.apk
+          if-no-files-found: error
