@@ -52,6 +52,7 @@ class MainActivity : BaseActivity() {
         setSupportActionBar(toolbar)
 
         defaultDPreference.setPrefString(AppConfig.PREF_MODE, "VPN")
+        enforceLegacyNetworkPrefs()
 
         input_api_base_url.setText(defaultDPreference.getPrefString(PREF_DDCAT_API_BASE, ""))
         input_email.setText(defaultDPreference.getPrefString(PREF_DDCAT_EMAIL, ""))
@@ -59,6 +60,14 @@ class MainActivity : BaseActivity() {
         btn_login.setOnClickListener { loginOrRefresh(false) }
         btn_refresh.setOnClickListener { loginOrRefresh(true) }
         btn_connect.setOnClickListener { onConnectButtonClicked() }
+        btn_connect.setOnLongClickListener {
+            copyCurrentConfigForDebug()
+            true
+        }
+        tv_line_info.setOnLongClickListener {
+            copyCurrentConfigForDebug()
+            true
+        }
         btn_renew.setOnClickListener { openBusinessPage("/login.html") }
         btn_order.setOnClickListener { openBusinessPage("/login.html") }
         btn_service.setOnClickListener { toast("请点击网页右下角气泡窗口联系客服") }
@@ -90,6 +99,7 @@ class MainActivity : BaseActivity() {
     }
 
     private fun onConnectButtonClicked() {
+        enforceLegacyNetworkPrefs()
         if (mainViewModel.isRunning.value == true) {
             Utils.stopVService(this)
             return
@@ -293,6 +303,7 @@ class MainActivity : BaseActivity() {
                 return false
             }
 
+            enforceLegacyNetworkPrefs()
             val configJson = buildLegacyVlessJson(json)
             defaultDPreference.setPrefString(AppConfig.ANG_CONFIG + PREF_DDCAT_CONFIG_GUID, configJson)
 
@@ -452,6 +463,32 @@ class MainActivity : BaseActivity() {
                 .put("rules", JSONArray()))
         root.put("stats", JSONObject())
         return root.toString(2)
+    }
+
+    private fun enforceLegacyNetworkPrefs() {
+        // Keep the VPN/DNS behavior close to the working v2rayNG_1.5.0 profile
+        // and avoid stale settings inherited from older test builds.
+        defaultDPreference.setPrefString(AppConfig.PREF_MODE, "VPN")
+        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
+        defaultDPreference.setPrefString(SettingsActivity.PREF_REMOTE_DNS, "1.1.1.1")
+        defaultDPreference.setPrefString(SettingsActivity.PREF_DOMESTIC_DNS, "223.5.5.5")
+        defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_MODE, "0")
+        defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_DOMAIN_STRATEGY, "IPIfNonMatch")
+        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_PROXY_SHARING, false)
+        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_PER_APP_PROXY, false)
+        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_FORWARD_IPV6, false)
+        defaultDPreference.setPrefBoolean(SettingsActivity.PREF_SNIFFING_ENABLED, true)
+    }
+
+    private fun copyCurrentConfigForDebug() {
+        val config = defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
+                .ifBlank { defaultDPreference.getPrefString(AppConfig.ANG_CONFIG + PREF_DDCAT_CONFIG_GUID, "") }
+        if (config.isBlank()) {
+            toast("当前还没有生成线路配置，请先登录账号")
+        } else {
+            Utils.setClipboard(this, config)
+            toast("当前线路配置已复制，可发给我对比排查")
+        }
     }
 
     private fun isLineReady(): Boolean {
