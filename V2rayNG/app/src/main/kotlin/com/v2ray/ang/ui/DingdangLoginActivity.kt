@@ -722,6 +722,9 @@ class DingdangLoginActivity : AppCompatActivity() {
         conn.connectTimeout = 15000
         conn.readTimeout = 20000
         conn.requestMethod = "GET"
+        conn.useCaches = false
+        conn.setRequestProperty("Cache-Control", "no-cache")
+        conn.setRequestProperty("Pragma", "no-cache")
         val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
         return BufferedReader(InputStreamReader(stream ?: conn.inputStream, "UTF-8")).use { it.readText() }
     }
@@ -1034,10 +1037,16 @@ class DingdangLoginActivity : AppCompatActivity() {
         Thread {
             try {
                 val base = resolveServiceBase()
+                val currentRawCode = BuildConfig.VERSION_CODE
+                val currentNormalizedCode = normalizeVersionCodeForCompare(currentRawCode)
                 val url = base + APP_UPDATE_API_PATH +
-                        "?current_version_code=" + BuildConfig.VERSION_CODE +
+                        "?current_version_code=" + currentRawCode +
+                        "&current_version_code_raw=" + currentRawCode +
+                        "&current_version_code_normalized=" + currentNormalizedCode +
                         "&current_version_name=" + URLEncoder.encode(BuildConfig.VERSION_NAME, "UTF-8") +
-                        "&package_name=" + URLEncoder.encode(packageName, "UTF-8")
+                        "&package_name=" + URLEncoder.encode(packageName, "UTF-8") +
+                        "&abi=" + URLEncoder.encode("arm64-v8a", "UTF-8") +
+                        "&_ts=" + System.currentTimeMillis()
                 val text = httpGet(url)
                 if (!text.trimStart().startsWith("{")) {
                     throw IllegalStateException("更新接口没有返回 JSON")
@@ -1084,19 +1093,41 @@ class DingdangLoginActivity : AppCompatActivity() {
                 if (line.isNotEmpty()) changelog.add(line)
             }
         }
+
+        val latestRaw = obj.optInt("latest_version_code_raw", obj.optInt("latest_version_code", 0))
+        val latestForDisplay = obj.optInt("latest_version_code", latestRaw)
+        val latestNormalized = obj.optInt("latest_version_code_normalized", normalizeVersionCodeForCompare(latestRaw))
+        val currentRaw = BuildConfig.VERSION_CODE
+        val currentNormalized = normalizeVersionCodeForCompare(currentRaw)
+        val minRaw = obj.optInt("min_supported_version_code_raw", obj.optInt("min_supported_version_code", 0))
+        val minNormalized = normalizeVersionCodeForCompare(minRaw)
+        val serverSaysUpdate = obj.optBoolean("update_available", false)
+        val localSaysUpdate = latestNormalized > 0 && latestNormalized > currentNormalized
+        val forceRequired = obj.optBoolean("force_required", false) ||
+                (minNormalized > 0 && currentNormalized < minNormalized)
+
         return UpdateInfo(
-                latestVersionCode = obj.optInt("latest_version_code", 0),
+                latestVersionCode = latestForDisplay,
                 latestVersionName = obj.optString("latest_version_name", ""),
-                minSupportedVersionCode = obj.optInt("min_supported_version_code", 0),
+                minSupportedVersionCode = obj.optInt("min_supported_version_code", minRaw),
                 forceUpdate = obj.optBoolean("force_update", false),
-                forceRequired = obj.optBoolean("force_required", false),
-                updateAvailable = obj.optBoolean("update_available", false),
+                forceRequired = forceRequired,
+                updateAvailable = serverSaysUpdate || localSaysUpdate,
                 title = obj.optString("title", "发现新版本"),
                 changelog = changelog,
                 apkUrl = obj.optString("apk_url", ""),
                 apkSize = obj.optLong("apk_size", 0L),
                 sha256 = obj.optString("sha256", "")
         )
+    }
+
+    private fun normalizeVersionCodeForCompare(code: Int): Int {
+        val positive = if (code < 0) -code else code
+        if (positive >= 1000000) {
+            val normalized = positive % 1000000
+            if (normalized > 0) return normalized
+        }
+        return positive
     }
 
     private fun showUpdateLatestDialog(info: UpdateInfo? = null) {
