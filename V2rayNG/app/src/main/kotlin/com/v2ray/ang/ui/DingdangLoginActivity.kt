@@ -242,15 +242,15 @@ class DingdangLoginActivity : AppCompatActivity() {
         logo.setImageResource(R.drawable.ddmng_logo)
         logo.adjustViewBounds = true
         logo.scaleType = ImageView.ScaleType.FIT_CENTER
-        val logoLp = LinearLayout.LayoutParams(dp(108), dp(108))
+        val logoLp = LinearLayout.LayoutParams(dp(84), dp(84))
         logoLp.gravity = Gravity.CENTER_HORIZONTAL
-        logoLp.topMargin = dp(2)
+        logoLp.topMargin = dp(0)
         box.addView(logo, logoLp)
 
         val heroTitle = TextView(this)
         heroTitle.text = "DdmNG"
         heroTitle.setTextColor(accent)
-        heroTitle.textSize = 28f
+        heroTitle.textSize = 22f
         heroTitle.gravity = Gravity.CENTER
         heroTitle.typeface = Typeface.DEFAULT_BOLD
         box.addView(heroTitle, LinearLayout.LayoutParams(-1, -2))
@@ -258,9 +258,9 @@ class DingdangLoginActivity : AppCompatActivity() {
         val heroSub = TextView(this)
         heroSub.text = "安全 · 稳定 · 高效"
         heroSub.setTextColor(Color.rgb(173, 190, 215))
-        heroSub.textSize = 15f
+        heroSub.textSize = 13f
         heroSub.gravity = Gravity.CENTER
-        heroSub.setPadding(0, dp(2), 0, dp(12))
+        heroSub.setPadding(0, dp(1), 0, dp(10))
         box.addView(heroSub, LinearLayout.LayoutParams(-1, -2))
 
         loginCard = card()
@@ -345,8 +345,8 @@ class DingdangLoginActivity : AppCompatActivity() {
 
         actionsRow = LinearLayout(this)
         actionsRow.orientation = LinearLayout.HORIZONTAL
-        val actionsLp = LinearLayout.LayoutParams(-1, dp(58))
-        actionsLp.topMargin = dp(8)
+        val actionsLp = LinearLayout.LayoutParams(-1, dp(66))
+        actionsLp.topMargin = dp(10)
         box.addView(actionsRow, actionsLp)
         val renew = actionButton("网络续费")
         val order = actionButton("访问网站")
@@ -355,8 +355,8 @@ class DingdangLoginActivity : AppCompatActivity() {
         order.setOnClickListener { openOfficialWebsite("访问网站") }
         support.setOnClickListener { openOfficialWebsite("联系客服") }
         actionsRow.addView(renew, LinearLayout.LayoutParams(0, -1, 1f))
-        val p2 = LinearLayout.LayoutParams(0, -1, 1f); p2.leftMargin = dp(10); actionsRow.addView(order, p2)
-        val p3 = LinearLayout.LayoutParams(0, -1, 1f); p3.leftMargin = dp(10); actionsRow.addView(support, p3)
+        val p2 = LinearLayout.LayoutParams(0, -1, 1f); p2.leftMargin = dp(8); actionsRow.addView(order, p2)
+        val p3 = LinearLayout.LayoutParams(0, -1, 1f); p3.leftMargin = dp(8); actionsRow.addView(support, p3)
 
         logoutButton = outlineButton("退出登录 / 更换邮箱")
         logoutButton.setOnClickListener { logoutAccount() }
@@ -584,7 +584,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         val vpnDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "暂无 VPN setup 诊断信息")
         val svcDiag = defaultDPreference.getPrefString("ddcat_service_last_start", "暂无 Service 启动诊断信息")
         val cfg = defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
-        val all = "=== DdmNG VPN Diagnostic V1.2.1.3 ===\n" +
+        val all = "=== DdmNG VPN Diagnostic V1.2.1.4 ===\n" +
                 "mode=" + defaultDPreference.getPrefString(AppConfig.PREF_MODE, "") + "\n" +
                 "routingMode=" + defaultDPreference.getPrefString(SettingsActivity.PREF_ROUTING_MODE, "") + "\n" +
                 "localDns=" + defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false) + "\n" +
@@ -1498,13 +1498,23 @@ class DingdangLoginActivity : AppCompatActivity() {
 
     private fun actionButton(text: String): TextView {
         val b = TextView(this)
-        b.text = text + "  ›"
+        val icon = when (text) {
+            "网络续费" -> "💎"
+            "访问网站" -> "🌐"
+            "联系客服" -> "💬"
+            else -> "•"
+        }
+        b.text = icon + "\n" + text
         b.setTextColor(primaryText)
-        b.textSize = 14f
+        b.textSize = 13f
         b.typeface = Typeface.DEFAULT_BOLD
         b.gravity = Gravity.CENTER
-        b.background = rounded(Color.argb(150, 13, 44, 90), dp(15).toFloat(), Color.argb(115, 88, 154, 240), 1)
+        b.maxLines = 2
+        b.includeFontPadding = false
+        b.setLineSpacing(0f, 0.94f)
+        b.background = horizontalGradient(intArrayOf(Color.argb(225, 18, 62, 122), Color.argb(225, 12, 92, 154)), dp(17).toFloat())
         b.isClickable = true
+        b.setPadding(dp(6), dp(6), dp(6), dp(6))
         return b
     }
 
