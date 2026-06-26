@@ -292,12 +292,10 @@ object Utils {
             val configContent = AngConfigManager.currGeneratedV2rayConfig()
             val configType = AngConfigManager.currConfigType()
             if (configType == EConfigType.CUSTOM) {
-                try {
-                    Libv2ray.testConfig(configContent)
-                } catch (e: Exception) {
-                    context.toast(e.toString())
-                    return false
-                }
+                // DingdangCat Legacy XTLS uses a generated custom VLESS JSON.
+                // Some legacy libv2ray builds may crash inside native testConfig()
+                // while the same config can still be started by the service.
+                // Skip pre-validation here and let the core start normally.
             }
             V2RayServiceManager.startV2Ray(context, context.v2RayApplication.defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN"))
             return true

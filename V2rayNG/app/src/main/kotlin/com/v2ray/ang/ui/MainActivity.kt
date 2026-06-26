@@ -17,7 +17,6 @@ import com.v2ray.ang.util.AngConfigManager
 import com.v2ray.ang.util.Utils
 import com.v2ray.ang.viewmodel.MainViewModel
 import kotlinx.android.synthetic.main.activity_main.*
-import libv2ray.Libv2ray
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -284,8 +283,15 @@ class MainActivity : BaseActivity() {
 
     private fun installLegacyVlessConfig(json: JSONObject): Boolean {
         return try {
+            val host = readString(json, "host_address")
+            val port = readInt(json, "port")
+            val uuid = readString(json, "uuid")
+            if (host.isBlank() || port <= 0 || uuid.isBlank()) {
+                tv_login_message.text = "线路参数不完整，请检查后端返回的 host / port / uuid"
+                return false
+            }
+
             val configJson = buildLegacyVlessJson(json)
-            Libv2ray.testConfig(configJson)
             defaultDPreference.setPrefString(AppConfig.ANG_CONFIG + PREF_DDCAT_CONFIG_GUID, configJson)
 
             val vmess = AngConfig.VmessBean()
@@ -293,9 +299,9 @@ class MainActivity : BaseActivity() {
             vmess.configVersion = 2
             vmess.configType = EConfigType.CUSTOM.value
             vmess.remarks = DEFAULT_REMARK
-            vmess.address = readString(json, "host_address")
-            vmess.port = readInt(json, "port")
-            vmess.id = readString(json, "uuid")
+            vmess.address = host
+            vmess.port = port
+            vmess.id = uuid
             vmess.network = readString(json, "network").ifBlank { "tcp" }
             vmess.streamSecurity = readString(json, "security").ifBlank { "xtls" }
             vmess.requestHost = readSni(json)
@@ -303,18 +309,37 @@ class MainActivity : BaseActivity() {
             vmess.alterId = 0
             vmess.headerType = "none"
 
-            val oldIndex = AngConfigManager.getIndexViaGuid(PREF_DDCAT_CONFIG_GUID)
-            AngConfigManager.addCustomServer(vmess, oldIndex)
-            val newIndex = AngConfigManager.getIndexViaGuid(PREF_DDCAT_CONFIG_GUID)
-            if (newIndex >= 0) {
-                AngConfigManager.setActiveServer(newIndex)
-                AngConfigManager.genStoreV2rayConfig(newIndex)
-                true
+            upsertLegacyCustomServer(vmess, configJson)
+        } catch (e: Throwable) {
+            tv_login_message.text = "线路写入失败：${e.message ?: e.javaClass.simpleName}"
+            false
+        }
+    }
+
+    private fun upsertLegacyCustomServer(vmess: AngConfig.VmessBean, configJson: String): Boolean {
+        return try {
+            vmess.guid = PREF_DDCAT_CONFIG_GUID
+            vmess.configVersion = 2
+            vmess.configType = EConfigType.CUSTOM.value
+
+            val list = AngConfigManager.configs.vmess
+            val oldIndex = list.indexOfFirst { it.guid == PREF_DDCAT_CONFIG_GUID }
+            val finalIndex = if (oldIndex >= 0) {
+                list[oldIndex] = vmess
+                oldIndex
             } else {
-                false
+                list.add(vmess)
+                list.size - 1
             }
-        } catch (e: Exception) {
-            tv_login_message.text = "线路配置校验失败：${e.message ?: e.javaClass.simpleName}"
+
+            AngConfigManager.configs.index = finalIndex
+            AngConfigManager.storeConfigFile()
+            defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG, configJson)
+            defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_GUID, PREF_DDCAT_CONFIG_GUID)
+            defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_NAME, DEFAULT_REMARK)
+            true
+        } catch (e: Throwable) {
+            tv_login_message.text = "线路保存失败：${e.message ?: e.javaClass.simpleName}"
             false
         }
     }
