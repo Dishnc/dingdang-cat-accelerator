@@ -95,6 +95,8 @@ class DingdangLoginActivity : AppCompatActivity() {
     private lateinit var connectionSubText: TextView
     private lateinit var loginButton: TextView
     private lateinit var refreshButton: TextView
+    private lateinit var loginLoadingView: LinearLayout
+    private lateinit var loginLoadingText: TextView
     private lateinit var startButton: TextView
     private lateinit var accountEmailValue: TextView
     private lateinit var accountStatusValue: TextView
@@ -273,7 +275,7 @@ class DingdangLoginActivity : AppCompatActivity() {
 
         loginCard = card()
         box.addView(loginCard, cardLp())
-        loginCard.addView(sectionTitle("👤", "登录 / 查询账号"))
+        loginCard.addView(sectionTitle("👤", "账号登录"))
 
         emailInput = EditText(this)
         emailInput.hint = "请输入邮箱账号"
@@ -294,7 +296,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         loginRowLp.topMargin = dp(14)
         loginCard.addView(loginRow, loginRowLp)
 
-        loginButton = primaryButton("登录 / 查询账号")
+        loginButton = primaryButton("登录")
         loginButton.setOnClickListener { doLogin() }
         loginRow.addView(loginButton, LinearLayout.LayoutParams(0, -1, 1f))
 
@@ -303,6 +305,40 @@ class DingdangLoginActivity : AppCompatActivity() {
         val refreshLp = LinearLayout.LayoutParams(dp(104), -1)
         refreshLp.leftMargin = dp(12)
         loginRow.addView(refreshButton, refreshLp)
+
+        loginLoadingView = LinearLayout(this)
+        loginLoadingView.orientation = LinearLayout.HORIZONTAL
+        loginLoadingView.gravity = Gravity.CENTER_VERTICAL
+        loginLoadingView.setPadding(dp(16), dp(12), dp(16), dp(12))
+        loginLoadingView.background = horizontalGradient(intArrayOf(Color.argb(175, 21, 86, 151), Color.argb(175, 31, 189, 229)), dp(18).toFloat())
+        loginLoadingView.visibility = View.GONE
+        val loginLoadingLp = LinearLayout.LayoutParams(-1, -2)
+        loginLoadingLp.topMargin = dp(14)
+        loginCard.addView(loginLoadingView, loginLoadingLp)
+
+        val loginSpinner = ProgressBar(this)
+        loginSpinner.isIndeterminate = true
+        loginLoadingView.addView(loginSpinner, LinearLayout.LayoutParams(dp(38), dp(38)))
+
+        val loginLoadingTexts = LinearLayout(this)
+        loginLoadingTexts.orientation = LinearLayout.VERTICAL
+        val loginLoadingTextsLp = LinearLayout.LayoutParams(0, -2, 1f)
+        loginLoadingTextsLp.leftMargin = dp(12)
+        loginLoadingView.addView(loginLoadingTexts, loginLoadingTextsLp)
+
+        loginLoadingText = TextView(this)
+        loginLoadingText.text = "正在登录中"
+        loginLoadingText.setTextColor(Color.WHITE)
+        loginLoadingText.textSize = 15f
+        loginLoadingText.typeface = Typeface.DEFAULT_BOLD
+        loginLoadingTexts.addView(loginLoadingText, LinearLayout.LayoutParams(-1, -2))
+
+        val loginLoadingSub = TextView(this)
+        loginLoadingSub.text = "正在获取账号状态和专属线路，请稍候…"
+        loginLoadingSub.setTextColor(Color.rgb(222, 246, 255))
+        loginLoadingSub.textSize = 12f
+        loginLoadingSub.setPadding(0, dp(3), 0, 0)
+        loginLoadingTexts.addView(loginLoadingSub, LinearLayout.LayoutParams(-1, -2))
 
         connCard = card()
         box.addView(connCard, cardLp())
@@ -392,6 +428,32 @@ class DingdangLoginActivity : AppCompatActivity() {
         setContentView(root)
     }
 
+    private fun setLoginLoading(loading: Boolean) {
+        if (::loginLoadingView.isInitialized) {
+            loginLoadingView.visibility = if (loading && ::loginCard.isInitialized && loginCard.visibility == View.VISIBLE) View.VISIBLE else View.GONE
+            loginLoadingText.text = if (loading) "正在登录中" else ""
+            if (loading) {
+                val pulse = AlphaAnimation(0.72f, 1.0f)
+                pulse.duration = 720
+                pulse.repeatMode = Animation.REVERSE
+                pulse.repeatCount = Animation.INFINITE
+                loginLoadingView.startAnimation(pulse)
+            } else {
+                loginLoadingView.clearAnimation()
+            }
+        }
+        if (::emailInput.isInitialized) emailInput.isEnabled = !loading
+        if (::loginButton.isInitialized) {
+            loginButton.text = "登录"
+            loginButton.isEnabled = !loading
+            loginButton.alpha = if (loading) 0.62f else 1f
+        }
+        if (::refreshButton.isInitialized) {
+            refreshButton.isEnabled = !loading
+            refreshButton.alpha = if (loading) 0.62f else 1f
+        }
+    }
+
     private fun doLogin(auto: Boolean = false) {
         hideKeyboard()
         val base = resolveServiceBase()
@@ -402,8 +464,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         }
         status("正在登录并获取专属线路...")
         connectionSubText.text = "正在查询账号和线路信息"
-        loginButton.isEnabled = false
-        refreshButton.isEnabled = false
+        setLoginLoading(true)
         Thread {
             try {
                 val url = base + "/api/app/login?email=" + URLEncoder.encode(email, "UTF-8")
@@ -446,8 +507,7 @@ class DingdangLoginActivity : AppCompatActivity() {
                     status("登录成功，专属线路已准备。")
                     applyExpireWarning(expire)
                     startButton.isEnabled = true
-                    loginButton.isEnabled = true
-                    refreshButton.isEnabled = true
+                    setLoginLoading(false)
                 }
             } catch (e: Throwable) {
                 mainHandler.post {
@@ -461,8 +521,7 @@ class DingdangLoginActivity : AppCompatActivity() {
                         connectionSubText.text = "未能获取专属线路，请确认邮箱是否正确"
                         startButton.isEnabled = false
                     }
-                    loginButton.isEnabled = true
-                    refreshButton.isEnabled = true
+                    setLoginLoading(false)
                 }
             }
         }.start()
@@ -679,6 +738,7 @@ class DingdangLoginActivity : AppCompatActivity() {
 
     private fun setLoggedInUi(loggedIn: Boolean) {
         isLoggedIn = loggedIn
+        if (loggedIn && ::loginLoadingView.isInitialized) setLoginLoading(false)
         loginCard.visibility = if (loggedIn) View.GONE else View.VISIBLE
         connCard.visibility = if (loggedIn) View.VISIBLE else View.GONE
         accountCard.visibility = if (loggedIn) View.VISIBLE else View.GONE
