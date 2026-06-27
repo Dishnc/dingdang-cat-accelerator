@@ -80,6 +80,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         private const val MONTH_PLAN_URL = "https://buy.aisuper.top/buy/1"
         private const val QUARTER_PLAN_URL = "https://buy.aisuper.top/buy/15"
         private const val YEAR_PLAN_URL = "https://buy.aisuper.top/buy/16"
+        private const val TRAFFIC_PACKAGE_URL = "https://buy.aisuper.top/buy/26"
         private const val APP_UPDATE_API_PATH = "/api/app/update"
         private const val APP_SUPPORT_PATH = "/app-support"
         private const val ROUTING_MODE_GLOBAL = "0"
@@ -243,23 +244,31 @@ class DingdangLoginActivity : AppCompatActivity() {
 
         val menuBtn = smallTopButton("☰")
         menuBtn.setOnClickListener { showTopMenu(menuBtn) }
-        top.addView(menuBtn, LinearLayout.LayoutParams(dp(44), dp(44)))
-
-        val topTitle = TextView(this)
-        topTitle.text = ""
-        topTitle.setTextColor(primaryText)
-        topTitle.textSize = 1f
-        topTitle.gravity = Gravity.CENTER
-        top.addView(topTitle, LinearLayout.LayoutParams(0, -1, 1f))
+        top.addView(menuBtn, LinearLayout.LayoutParams(dp(78), dp(44)))
 
         versionBadge = TextView(this)
         versionBadge.text = "V" + BuildConfig.VERSION_NAME
-        versionBadge.setTextColor(Color.rgb(156, 202, 245))
-        versionBadge.textSize = 11f
+        versionBadge.setTextColor(Color.rgb(182, 220, 255))
+        versionBadge.textSize = 12f
         versionBadge.gravity = Gravity.CENTER
-        versionBadge.maxLines = 2
-        versionBadge.background = rounded(Color.argb(72, 10, 42, 88), dp(13).toFloat(), Color.argb(90, 86, 165, 245), 1)
-        top.addView(versionBadge, LinearLayout.LayoutParams(dp(92), dp(34)))
+        versionBadge.maxLines = 1
+        versionBadge.typeface = Typeface.DEFAULT_BOLD
+        versionBadge.background = rounded(Color.argb(92, 10, 42, 88), dp(15).toFloat(), Color.argb(115, 86, 165, 245), 1)
+        val versionLp = LinearLayout.LayoutParams(0, dp(34), 1f)
+        versionLp.leftMargin = dp(8)
+        versionLp.rightMargin = dp(8)
+        top.addView(versionBadge, versionLp)
+
+        val supportTopButton = TextView(this)
+        supportTopButton.text = "💬 客服"
+        supportTopButton.setTextColor(Color.WHITE)
+        supportTopButton.textSize = 12f
+        supportTopButton.gravity = Gravity.CENTER
+        supportTopButton.typeface = Typeface.DEFAULT_BOLD
+        supportTopButton.background = horizontalGradient(intArrayOf(Color.rgb(28, 126, 255), Color.rgb(38, 214, 240)), dp(15).toFloat())
+        supportTopButton.isClickable = true
+        supportTopButton.setOnClickListener { openInAppSupportChat() }
+        top.addView(supportTopButton, LinearLayout.LayoutParams(dp(78), dp(34)))
 
         brandLogo = ImageView(this)
         brandLogo.setImageResource(R.drawable.ddmng_logo)
@@ -458,13 +467,13 @@ class DingdangLoginActivity : AppCompatActivity() {
         box.addView(actionsRow, actionsLp)
         val renew = actionButton("网络续费")
         val order = actionButton("访问网站")
-        val support = actionButton("联系客服")
+        val trafficPackage = actionButton("购买流量包")
         renew.setOnClickListener { showRenewPlansDialog() }
         order.setOnClickListener { openOfficialWebsite("访问网站") }
-        support.setOnClickListener { openInAppSupportChat() }
+        trafficPackage.setOnClickListener { openUrl("购买流量包", TRAFFIC_PACKAGE_URL) }
         actionsRow.addView(renew, LinearLayout.LayoutParams(0, -1, 1f))
         val p2 = LinearLayout.LayoutParams(0, -1, 1f); p2.leftMargin = dp(8); actionsRow.addView(order, p2)
-        val p3 = LinearLayout.LayoutParams(0, -1, 1f); p3.leftMargin = dp(8); actionsRow.addView(support, p3)
+        val p3 = LinearLayout.LayoutParams(0, -1, 1f); p3.leftMargin = dp(8); actionsRow.addView(trafficPackage, p3)
 
         logoutButton = outlineButton("退出登录 / 更换邮箱")
         logoutButton.setOnClickListener { logoutAccount() }
@@ -563,13 +572,11 @@ class DingdangLoginActivity : AppCompatActivity() {
 
                 mainHandler.post {
                     accountEmailValue.text = email
-                    accountStatusValue.text = statusTextValue.ifBlank { "正常使用" }
-                    accountExpireValue.text = expire.ifBlank { "--" }
+                    updateAccountStatusAndExpire(statusTextValue, expire)
                     updateTrafficUsage(used, total, remain)
                     setLoggedInUi(true)
                     setReadyState("登录成功，专属线路已准备")
                     status("登录成功，专属线路已准备。")
-                    applyExpireWarning(expire)
                     startButton.isEnabled = true
                     setLoginLoading(false)
                 }
@@ -821,7 +828,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         val vpnDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "暂无 VPN setup 诊断信息")
         val svcDiag = defaultDPreference.getPrefString("ddcat_service_last_start", "暂无 Service 启动诊断信息")
         val cfg = defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
-        val all = "=== DdmNG Diagnostic V1.2.2.6 ===\n" +
+        val all = "=== DdmNG Diagnostic V1.2.2.7 ===\n" +
                 "mode=" + defaultDPreference.getPrefString(AppConfig.PREF_MODE, "") + "\n" +
                 "routingMode=" + defaultDPreference.getPrefString(SettingsActivity.PREF_ROUTING_MODE, "") + "\n" +
                 "localDns=" + defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false) + "\n" +
@@ -922,9 +929,10 @@ class DingdangLoginActivity : AppCompatActivity() {
 
     private fun resetAccountInfoForLoggedOut() {
         accountEmailValue.text = "--"
-        accountStatusValue.text = "未登录"
+        setAccountStatusPill("未登录", Color.rgb(150, 168, 190), Color.argb(72, 92, 112, 138), Color.argb(95, 130, 155, 188))
         accountExpireValue.text = "--"
         accountExpireValue.setTextColor(Color.rgb(198, 216, 238))
+        accountExpireValue.background = null
         accountTrafficDetailValue.text = "--"
         accountTrafficPercentValue.text = "--"
         accountTrafficProgress.progress = 0
@@ -1149,6 +1157,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         wrap.addView(menuDialogItem(dialog, "⬆", "检查更新", "检查是否有新版本可用") { checkForUpdates(true) }, menuItemLp())
         wrap.addView(menuDialogItem(dialog, "🌐", "访问网站", "打开 DdmNG 官方服务页面") { openOfficialWebsite("访问网站") }, menuItemLp())
         wrap.addView(menuDialogItem(dialog, "💬", "联系客服", "打开 APP 内在线客服聊天窗口") { openInAppSupportChat() }, menuItemLp())
+        wrap.addView(menuDialogItem(dialog, "↩", "退出登录 / 更换邮箱", "清除当前账号并返回登录页") { logoutAccount() }, menuItemLp())
 
         val close = outlineButton("关闭")
         close.setOnClickListener { dialog.dismiss() }
@@ -1991,11 +2000,76 @@ class DingdangLoginActivity : AppCompatActivity() {
         return if (mb >= 1.0) String.format(Locale.US, "%.1f MB", mb) else String.format(Locale.US, "%.0f KB", bytes / 1024.0)
     }
 
-    private fun applyExpireWarning(expire: String) {
-        accountExpireValue.setTextColor(Color.rgb(198, 216, 238))
+    private fun updateAccountStatusAndExpire(rawStatus: String, expire: String) {
         val days = daysUntilExpire(expire)
-        if (days != null && days in 0..3) {
-            accountExpireValue.setTextColor(Color.rgb(255, 202, 89))
+        val stopped = isStoppedStatus(rawStatus) || (days != null && days < 0)
+        val expiring = !stopped && days != null && days in 0..6
+        when {
+            stopped -> {
+                setAccountStatusPill("停用", Color.rgb(255, 235, 235), Color.argb(150, 126, 32, 46), Color.argb(220, 255, 96, 96))
+                accountExpireValue.setTextColor(disconnectedRed)
+            }
+            expiring -> {
+                setAccountStatusPill("即将到期", Color.rgb(255, 246, 218), Color.argb(145, 122, 84, 24), Color.argb(220, 255, 174, 74))
+                accountExpireValue.setTextColor(Color.rgb(255, 202, 89))
+                status("账号剩余不足 7 天，请及时续费。")
+            }
+            else -> {
+                setAccountStatusPill("正常", Color.rgb(218, 255, 236), Color.argb(130, 18, 104, 72), Color.argb(210, 64, 232, 143))
+                accountExpireValue.setTextColor(Color.rgb(198, 216, 238))
+            }
+        }
+        accountExpireValue.text = formatExpireForDisplay(expire, days)
+    }
+
+    private fun setAccountStatusPill(text: String, textColor: Int, bgColor: Int, borderColor: Int) {
+        if (!::accountStatusValue.isInitialized) return
+        accountStatusValue.text = text
+        accountStatusValue.setTextColor(textColor)
+        accountStatusValue.gravity = Gravity.CENTER
+        accountStatusValue.setPadding(dp(10), dp(4), dp(10), dp(4))
+        accountStatusValue.background = rounded(bgColor, dp(12).toFloat(), borderColor, 1)
+    }
+
+    private fun isStoppedStatus(rawStatus: String): Boolean {
+        val msg = rawStatus.trim().toLowerCase(Locale.getDefault())
+        return msg.contains("停用") || msg.contains("禁用") || msg.contains("暂停") ||
+                msg.contains("封禁") || msg.contains("已过期") || msg.contains("过期") ||
+                msg.contains("expired") || msg.contains("disabled") || msg.contains("inactive") ||
+                msg.contains("suspended")
+    }
+
+    private fun formatExpireForDisplay(expire: String, days: Int?): String {
+        val date = expireDateOnly(expire)
+        if (date == "--") return "--"
+        val dayText = when {
+            days == null -> ""
+            days < 0 -> "（已到期）"
+            days == 0 -> "（今日到期）"
+            else -> "（剩余" + days + "天）"
+        }
+        return date + dayText
+    }
+
+    private fun expireDateOnly(expire: String): String {
+        val clean = expire.trim()
+        if (clean.isEmpty() || clean == "--") return "--"
+        val patterns = arrayOf("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd", "yyyy/MM/dd HH:mm:ss", "yyyy/MM/dd")
+        for (pattern in patterns) {
+            try {
+                val sdf = SimpleDateFormat(pattern, Locale.US)
+                val time = sdf.parse(clean) ?: continue
+                return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(time)
+            } catch (ignored: Throwable) {
+            }
+        }
+        return if (clean.length >= 10) clean.substring(0, 10).replace('/', '-') else clean
+    }
+
+    private fun applyExpireWarning(expire: String) {
+        val days = daysUntilExpire(expire)
+        accountExpireValue.setTextColor(if (days != null && days in 0..6) Color.rgb(255, 202, 89) else Color.rgb(198, 216, 238))
+        if (days != null && days in 0..6) {
             status("账号将在 " + days + " 天内到期，请及时续费。")
         }
     }
@@ -2132,6 +2206,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         val icon = when (text) {
             "网络续费" -> "💎"
             "访问网站" -> "🌐"
+            "购买流量包" -> "📦"
             "联系客服" -> "💬"
             else -> "•"
         }
