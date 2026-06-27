@@ -308,12 +308,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         loginRow.addView(loginButton, LinearLayout.LayoutParams(0, -1, 1f))
 
         refreshButton = outlineButton("开通")
-        refreshButton.setOnClickListener {
-            showRenewPlansDialog(
-                "开通网络套餐",
-                "购买套餐时请填写要登录 APP 的邮箱。购买成功后，直接用购买时输入的邮箱登录即可使用。"
-            )
-        }
+        refreshButton.setOnClickListener { showRenewPlansDialog() }
         val refreshLp = LinearLayout.LayoutParams(dp(104), -1)
         refreshLp.leftMargin = dp(12)
         loginRow.addView(refreshButton, refreshLp)
@@ -538,23 +533,23 @@ class DingdangLoginActivity : AppCompatActivity() {
                 }
             } catch (e: Throwable) {
                 mainHandler.post {
-                    val errorMessage = e.message ?: e.javaClass.name
-                    if (isAccountNotFoundError(errorMessage)) {
-                        status("未查询到该邮箱账号，请先点击“开通”按钮购买套餐，购买成功后再用该邮箱登录。")
-                        toast("未查询到账号，请先点开通购买套餐")
-                    } else {
-                        status("登录失败：$errorMessage")
-                    }
+                    val rawMessage = e.message ?: e.javaClass.name
+                    val accountNotFound = isAccountNotFoundMessage(rawMessage)
+                    status(if (accountNotFound) "未查询到该邮箱账号，请先点击开通购买套餐。" else "登录失败：$rawMessage")
                     if (auto && AngConfigManager.configs.index >= 0) {
                         setLoggedInUi(true)
                         connectionSubText.text = "账号信息暂时刷新失败，可继续使用已保存线路"
                         startButton.isEnabled = true
                     } else {
                         setLoggedInUi(false)
-                        connectionSubText.text = if (isAccountNotFoundError(errorMessage)) {
-                            "该邮箱暂未开通套餐，请点击开通按钮购买后再登录"
+                        connectionSubText.text = if (accountNotFound) {
+                            "未查询到账号，请点击开通购买套餐，开通后使用购买时填写的邮箱登录。"
                         } else {
                             "未能获取专属线路，请确认邮箱是否正确"
+                        }
+                        if (accountNotFound) {
+                            toast("请先点击开通按钮购买套餐，开通后再登录")
+                            highlightOpenButton()
                         }
                         startButton.isEnabled = false
                     }
@@ -562,6 +557,26 @@ class DingdangLoginActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun isAccountNotFoundMessage(message: String): Boolean {
+        val msg = message.lowercase(Locale.getDefault())
+        return msg.contains("not found") || msg.contains("no account") || msg.contains("account not") ||
+                msg.contains("不存在") || msg.contains("未找到") || msg.contains("未查询") ||
+                msg.contains("查询不到") || msg.contains("没有找到") || msg.contains("账号不存在") ||
+                msg.contains("用户不存在") || msg.contains("邮箱不存在") || msg.contains("未开通")
+    }
+
+    private fun highlightOpenButton() {
+        if (!::refreshButton.isInitialized) return
+        refreshButton.text = "开通"
+        refreshButton.isEnabled = true
+        refreshButton.alpha = 1f
+        val pulse = AlphaAnimation(0.58f, 1.0f)
+        pulse.duration = 520
+        pulse.repeatMode = Animation.REVERSE
+        pulse.repeatCount = 5
+        refreshButton.startAnimation(pulse)
     }
 
     private fun storeAsVerifiedVlessConfig(host: String, port: Int, uuid: String, flow: String, email: String): Int {
@@ -849,22 +864,6 @@ class DingdangLoginActivity : AppCompatActivity() {
         toast("已退出登录")
     }
 
-    private fun isAccountNotFoundError(message: String): Boolean {
-        val lower = message.toLowerCase()
-        return lower.contains("not found") ||
-                lower.contains("no account") ||
-                lower.contains("not exist") ||
-                lower.contains("missing account") ||
-                message.contains("不存在") ||
-                message.contains("未找到") ||
-                message.contains("找不到") ||
-                message.contains("查询不到") ||
-                message.contains("未查询到") ||
-                message.contains("未开通") ||
-                message.contains("账号不存在") ||
-                message.contains("邮箱不存在")
-    }
-
     private fun httpGet(url: String): String {
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.connectTimeout = 15000
@@ -1123,10 +1122,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         return lp
     }
 
-    private fun showRenewPlansDialog(
-        titleText: String = "选择网络续费套餐",
-        tipsText: String = "请选择适合你的使用时长，点击套餐卡片后将打开购买页面。"
-    ) {
+    private fun showRenewPlansDialog() {
         hideKeyboard()
         val dialog = android.app.Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -1137,7 +1133,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         wrap.background = rounded(Color.rgb(7, 26, 61), dp(20).toFloat(), border, 1)
 
         val title = TextView(this)
-        title.text = titleText
+        title.text = "开通网络套餐"
         title.setTextColor(primaryText)
         title.textSize = 20f
         title.typeface = Typeface.DEFAULT_BOLD
@@ -1145,16 +1141,16 @@ class DingdangLoginActivity : AppCompatActivity() {
         wrap.addView(title, LinearLayout.LayoutParams(-1, -2))
 
         val tips = TextView(this)
-        tips.text = tipsText
+        tips.text = "购买时填写的邮箱就是 APP 登录账号。支付开通后，回到 APP 使用购买邮箱登录即可使用。"
         tips.setTextColor(secondText)
         tips.textSize = 13f
         tips.gravity = Gravity.CENTER
         tips.setPadding(0, dp(8), 0, dp(12))
         wrap.addView(tips, LinearLayout.LayoutParams(-1, -2))
 
-        wrap.addView(renewPlanCard(dialog, "月套餐", "流量 30GB/月", "仅支持单台设备", MONTH_PLAN_URL), planCardLp())
-        wrap.addView(renewPlanCard(dialog, "季度套餐", "流量 50GB/月 × 3个月", "支持 2 台设备", QUARTER_PLAN_URL), planCardLp())
-        wrap.addView(renewPlanCard(dialog, "年套餐", "流量 100GB/月 × 12个月", "支持 3 台设备", YEAR_PLAN_URL), planCardLp())
+        wrap.addView(renewPlanCard(dialog, "月套餐 ￥30", "流量 30GB/月", "仅支持单台设备", MONTH_PLAN_URL), planCardLp())
+        wrap.addView(renewPlanCard(dialog, "季度套餐 ￥85", "流量 50GB/月 × 3个月", "支持 2 台设备", QUARTER_PLAN_URL), planCardLp())
+        wrap.addView(renewPlanCard(dialog, "年套餐 ￥265", "流量 100GB/月 × 12个月", "支持 3 台设备", YEAR_PLAN_URL), planCardLp())
 
         val close = outlineButton("稍后再说")
         close.setOnClickListener { dialog.dismiss() }
