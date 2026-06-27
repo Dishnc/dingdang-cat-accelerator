@@ -82,6 +82,8 @@ class DingdangLoginActivity : AppCompatActivity() {
         private const val YEAR_PLAN_URL = "https://buy.aisuper.top/buy/16"
         private const val APP_UPDATE_API_PATH = "/api/app/update"
         private const val APP_SUPPORT_PATH = "/app-support"
+        private const val ROUTING_MODE_GLOBAL = "0"
+        private const val ROUTING_MODE_SMART = "3"
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -99,6 +101,8 @@ class DingdangLoginActivity : AppCompatActivity() {
     private lateinit var connectionBadge: TextView
     private lateinit var connectionSubText: TextView
     private lateinit var connectionEffectText: TextView
+    private lateinit var smartModeButton: TextView
+    private lateinit var globalModeButton: TextView
     private lateinit var loginButton: TextView
     private lateinit var refreshButton: TextView
     private lateinit var loginLoadingView: LinearLayout
@@ -117,12 +121,13 @@ class DingdangLoginActivity : AppCompatActivity() {
     private var pendingUpdateApk: File? = null
     private var connectionPulseAnimation: AlphaAnimation? = null
     private var supportFilePathCallback: ValueCallback<Array<Uri>>? = null
+    private var useGlobalRouting: Boolean = false
 
     private val serviceStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.getIntExtra("key", 0)) {
                 AppConfig.MSG_STATE_RUNNING, AppConfig.MSG_STATE_START_SUCCESS -> {
-                    setAcceleratingState("加速成功，正在为你加速。")
+                    setAcceleratingState("加速成功，当前为" + currentRoutingLabel() + "。")
                 }
                 AppConfig.MSG_STATE_START_FAILURE -> {
                     setStartFailureState("启动失败：当前线路配置无效")
@@ -164,6 +169,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         title = "DdmNG"
         defaultDPreference.setPrefString(PREF_DDCAT_SERVICE, DEFAULT_SERVICE_BASE.trim().trimEnd('/'))
+        resetSmartRoutingForNewSession()
         buildUi()
         activeIndex = AngConfigManager.configs.index
         val savedEmail = defaultDPreference.getPrefString(PREF_DDCAT_EMAIL, "").trim()
@@ -379,6 +385,42 @@ class DingdangLoginActivity : AppCompatActivity() {
         val effectLp = LinearLayout.LayoutParams(-1, dp(38))
         effectLp.bottomMargin = dp(14)
         connCard.addView(connectionEffectText, effectLp)
+
+        val routingBox = LinearLayout(this)
+        routingBox.orientation = LinearLayout.VERTICAL
+        routingBox.setPadding(dp(12), dp(10), dp(12), dp(10))
+        routingBox.background = rounded(Color.argb(88, 12, 50, 96), dp(16).toFloat(), Color.argb(96, 85, 168, 245), 1)
+        val routingBoxLp = LinearLayout.LayoutParams(-1, -2)
+        routingBoxLp.bottomMargin = dp(14)
+        connCard.addView(routingBox, routingBoxLp)
+
+        val routingTitle = TextView(this)
+        routingTitle.text = "加速模式"
+        routingTitle.setTextColor(Color.rgb(204, 229, 255))
+        routingTitle.textSize = 13f
+        routingTitle.typeface = Typeface.DEFAULT_BOLD
+        routingBox.addView(routingTitle, LinearLayout.LayoutParams(-1, -2))
+
+        val routingHint = TextView(this)
+        routingHint.text = "默认智能模式：大陆地址直连，其他地址走加速通道。全局模式需手动选择，本次生效。"
+        routingHint.setTextColor(Color.rgb(150, 180, 212))
+        routingHint.textSize = 11f
+        routingHint.setPadding(0, dp(4), 0, dp(8))
+        routingBox.addView(routingHint, LinearLayout.LayoutParams(-1, -2))
+
+        val routingRow = LinearLayout(this)
+        routingRow.orientation = LinearLayout.HORIZONTAL
+        routingBox.addView(routingRow, LinearLayout.LayoutParams(-1, dp(40)))
+
+        smartModeButton = routingModeButton("智能模式")
+        globalModeButton = routingModeButton("全局模式")
+        smartModeButton.setOnClickListener { selectRoutingMode(false) }
+        globalModeButton.setOnClickListener { selectRoutingMode(true) }
+        routingRow.addView(smartModeButton, LinearLayout.LayoutParams(0, -1, 1f))
+        val globalLp = LinearLayout.LayoutParams(0, -1, 1f)
+        globalLp.leftMargin = dp(8)
+        routingRow.addView(globalModeButton, globalLp)
+        updateRoutingModeButtons()
 
         startButton = primaryButton("🚀  一键加速")
         startButton.textSize = 18f
@@ -604,7 +646,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         AngConfigManager.addVlessServer(bean, -1)
         val index = AngConfigManager.configs.vmess.size - 1
         AngConfigManager.setActiveServer(index)
-        forceFullDeviceVpnDefaults(host, port)
+        applyDdmngRoutingDefaults(host, port)
         // Let original v2rayNG config generator write PREF_CURR_CONFIG / DOMAIN / TAGS using VLESS type.
         AngConfigManager.genStoreV2rayConfig(index)
         defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "$host:$port")
@@ -613,16 +655,66 @@ class DingdangLoginActivity : AppCompatActivity() {
         return index
     }
 
-    private fun forceFullDeviceVpnDefaults(host: String, port: Int) {
+    private fun resetSmartRoutingForNewSession() {
+        useGlobalRouting = false
+        defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_MODE, ROUTING_MODE_SMART)
+    }
+
+    private fun applyDdmngRoutingDefaults(host: String, port: Int) {
         defaultDPreference.setPrefString(AppConfig.PREF_MODE, "VPN")
         defaultDPreference.setPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false)
         defaultDPreference.setPrefBoolean(SettingsActivity.PREF_FORWARD_IPV6, false)
         defaultDPreference.setPrefString(SettingsActivity.PREF_REMOTE_DNS, "1.1.1.1,8.8.8.8")
-        defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_MODE, "0")
+        defaultDPreference.setPrefString(SettingsActivity.PREF_DOMESTIC_DNS, "223.5.5.5,119.29.29.29")
+        defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_DOMAIN_STRATEGY, "IPIfNonMatch")
+        defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_MODE, if (useGlobalRouting) ROUTING_MODE_GLOBAL else ROUTING_MODE_SMART)
         defaultDPreference.setPrefBoolean(SettingsActivity.PREF_PER_APP_PROXY, false)
         defaultDPreference.setPrefBoolean(PerAppProxyActivity.PREF_BYPASS_APPS, false)
         defaultDPreference.setPrefStringSet(PerAppProxyActivity.PREF_PER_APP_PROXY_SET, HashSet<String>())
         defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "$host:$port")
+    }
+
+    private fun selectRoutingMode(global: Boolean) {
+        useGlobalRouting = global
+        val bean = AngConfigManager.configs.vmess.getOrNull(AngConfigManager.configs.index)
+        if (bean != null) {
+            applyDdmngRoutingDefaults(bean.address, bean.port)
+            try {
+                AngConfigManager.genStoreV2rayConfig(AngConfigManager.configs.index)
+            } catch (ignored: Throwable) {
+            }
+        } else {
+            defaultDPreference.setPrefString(SettingsActivity.PREF_ROUTING_MODE, if (global) ROUTING_MODE_GLOBAL else ROUTING_MODE_SMART)
+        }
+        updateRoutingModeButtons()
+        val label = if (global) "全局模式" else "智能模式"
+        if (isAccelerating) {
+            toast(label + "已选择，断开后重新一键加速即可完全生效")
+            status("已选择" + label + "，建议断开后重新一键加速。")
+        } else {
+            toast("已选择" + label)
+            status("当前加速模式：" + label)
+        }
+    }
+
+    private fun updateRoutingModeButtons() {
+        if (!::smartModeButton.isInitialized || !::globalModeButton.isInitialized) return
+        smartModeButton.background = if (!useGlobalRouting) {
+            horizontalGradient(intArrayOf(Color.rgb(30, 168, 236), Color.rgb(57, 223, 184)), dp(13).toFloat())
+        } else {
+            rounded(Color.argb(66, 20, 56, 98), dp(13).toFloat(), Color.argb(90, 101, 177, 246), 1)
+        }
+        globalModeButton.background = if (useGlobalRouting) {
+            horizontalGradient(intArrayOf(Color.rgb(255, 139, 64), Color.rgb(255, 92, 118)), dp(13).toFloat())
+        } else {
+            rounded(Color.argb(66, 20, 56, 98), dp(13).toFloat(), Color.argb(90, 101, 177, 246), 1)
+        }
+        smartModeButton.setTextColor(if (!useGlobalRouting) Color.WHITE else Color.rgb(190, 218, 244))
+        globalModeButton.setTextColor(if (useGlobalRouting) Color.WHITE else Color.rgb(190, 218, 244))
+    }
+
+    private fun currentRoutingLabel(): String {
+        return if (useGlobalRouting) "全局模式" else "智能模式"
     }
 
     private fun toggleProxy() {
@@ -640,7 +732,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         }
         val bean = AngConfigManager.configs.vmess.getOrNull(AngConfigManager.configs.index)
         if (bean != null) {
-            forceFullDeviceVpnDefaults(bean.address, bean.port)
+            applyDdmngRoutingDefaults(bean.address, bean.port)
             AngConfigManager.genStoreV2rayConfig(AngConfigManager.configs.index)
             defaultDPreference.setPrefString(AppConfig.PREF_CURR_CONFIG_DOMAIN, "${bean.address}:${bean.port}")
         }
@@ -648,7 +740,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         connectionBadge.text = "● 连接中"
         connectionBadge.setTextColor(connectingYellow)
         setConnectionCardConnecting()
-        connectionSubText.text = "正在建立安全连接，请稍候"
+        connectionSubText.text = "正在以" + currentRoutingLabel() + "建立连接，请稍候"
         if (defaultDPreference.getPrefString(AppConfig.PREF_MODE, "VPN") == "VPN") {
             val intent = VpnService.prepare(this)
             if (intent == null) {
@@ -666,7 +758,7 @@ class DingdangLoginActivity : AppCompatActivity() {
             defaultDPreference.setPrefString("ddcat_vpn_last_setup", "等待 VPN setup 回调；如果无法上网，请长按一键加速复制诊断。")
             val ok = Utils.startVService(this, AngConfigManager.configs.index)
             if (ok) {
-                setAcceleratingState("加速成功，正在为你加速。")
+                setAcceleratingState("加速成功，当前为" + currentRoutingLabel() + "。")
                 verifyNetworkAfterStart()
                 toast("加速成功")
             } else {
@@ -729,7 +821,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         val vpnDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "暂无 VPN setup 诊断信息")
         val svcDiag = defaultDPreference.getPrefString("ddcat_service_last_start", "暂无 Service 启动诊断信息")
         val cfg = defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
-        val all = "=== DdmNG VPN Diagnostic V1.2.2.1 ===\n" +
+        val all = "=== DdmNG Diagnostic V1.2.2.6 ===\n" +
                 "mode=" + defaultDPreference.getPrefString(AppConfig.PREF_MODE, "") + "\n" +
                 "routingMode=" + defaultDPreference.getPrefString(SettingsActivity.PREF_ROUTING_MODE, "") + "\n" +
                 "localDns=" + defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false) + "\n" +
@@ -886,7 +978,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         connectionBadge.text = "● 已准备"
         connectionBadge.setTextColor(connectedGreen)
         connectionSubText.text = message
-        updateConnectionEffect("已就绪 · 点击下方按钮启动安全加速", Color.rgb(178, 224, 255), Color.argb(98, 22, 77, 133), Color.argb(132, 86, 174, 255))
+        updateConnectionEffect("已就绪 · 默认智能模式，可手动切换全局", Color.rgb(178, 224, 255), Color.argb(98, 22, 77, 133), Color.argb(132, 86, 174, 255))
         startButton.text = "🚀  一键加速"
         setStartButtonVisual(false)
         startButton.isEnabled = AngConfigManager.configs.index >= 0
@@ -912,7 +1004,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         connectionBadge.text = "● 未连接"
         connectionBadge.setTextColor(disconnectedRed)
         connectionSubText.text = message
-        updateConnectionEffect("未连接 · 点击一键加速后自动建立连接", Color.rgb(255, 196, 196), Color.argb(86, 96, 32, 54), Color.argb(122, 255, 96, 96))
+        updateConnectionEffect("未连接 · 默认智能模式，大陆地址直连", Color.rgb(255, 196, 196), Color.argb(86, 96, 32, 54), Color.argb(122, 255, 96, 96))
         startButton.text = "🚀  一键加速"
         setStartButtonVisual(false)
         startButton.isEnabled = AngConfigManager.configs.index >= 0
@@ -2054,6 +2146,20 @@ class DingdangLoginActivity : AppCompatActivity() {
         b.background = horizontalGradient(intArrayOf(Color.argb(225, 18, 62, 122), Color.argb(225, 12, 92, 154)), dp(17).toFloat())
         b.isClickable = true
         b.setPadding(dp(6), dp(6), dp(6), dp(6))
+        return b
+    }
+
+
+    private fun routingModeButton(text: String): TextView {
+        val b = TextView(this)
+        b.text = text
+        b.setTextColor(Color.rgb(190, 218, 244))
+        b.textSize = 13f
+        b.typeface = Typeface.DEFAULT_BOLD
+        b.gravity = Gravity.CENTER
+        b.isClickable = true
+        b.setPadding(dp(6), 0, dp(6), 0)
+        b.background = rounded(Color.argb(66, 20, 56, 98), dp(13).toFloat(), Color.argb(90, 101, 177, 246), 1)
         return b
     }
 
