@@ -450,6 +450,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         routingBox.setPadding(dp(12), dp(10), dp(12), dp(10))
         routingBox.background = rounded(Color.argb(88, 12, 50, 96), dp(16).toFloat(), Color.argb(96, 85, 168, 245), 1)
         val routingBoxLp = LinearLayout.LayoutParams(-1, -2)
+        routingBoxLp.topMargin = dp(14)
         routingBoxLp.bottomMargin = dp(14)
         box.addView(routingBox, routingBoxLp)
 
