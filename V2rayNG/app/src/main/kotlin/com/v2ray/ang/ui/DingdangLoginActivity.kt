@@ -560,7 +560,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     }
 
     private fun isAccountNotFoundMessage(message: String): Boolean {
-        val msg = message.lowercase(Locale.getDefault())
+        val msg = message.toLowerCase(Locale.getDefault())
         return msg.contains("not found") || msg.contains("no account") || msg.contains("account not") ||
                 msg.contains("不存在") || msg.contains("未找到") || msg.contains("未查询") ||
                 msg.contains("查询不到") || msg.contains("没有找到") || msg.contains("账号不存在") ||
