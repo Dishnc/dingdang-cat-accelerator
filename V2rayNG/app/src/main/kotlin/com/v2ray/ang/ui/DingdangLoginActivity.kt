@@ -307,8 +307,13 @@ class DingdangLoginActivity : AppCompatActivity() {
         loginButton.setOnClickListener { doLogin() }
         loginRow.addView(loginButton, LinearLayout.LayoutParams(0, -1, 1f))
 
-        refreshButton = outlineButton("刷新")
-        refreshButton.setOnClickListener { doLogin() }
+        refreshButton = outlineButton("开通")
+        refreshButton.setOnClickListener {
+            showRenewPlansDialog(
+                "开通网络套餐",
+                "购买套餐时请填写要登录 APP 的邮箱。购买成功后，直接用购买时输入的邮箱登录即可使用。"
+            )
+        }
         val refreshLp = LinearLayout.LayoutParams(dp(104), -1)
         refreshLp.leftMargin = dp(12)
         loginRow.addView(refreshButton, refreshLp)
@@ -533,14 +538,24 @@ class DingdangLoginActivity : AppCompatActivity() {
                 }
             } catch (e: Throwable) {
                 mainHandler.post {
-                    status("登录失败：${e.message ?: e.javaClass.name}")
+                    val errorMessage = e.message ?: e.javaClass.name
+                    if (isAccountNotFoundError(errorMessage)) {
+                        status("未查询到该邮箱账号，请先点击“开通”按钮购买套餐，购买成功后再用该邮箱登录。")
+                        toast("未查询到账号，请先点开通购买套餐")
+                    } else {
+                        status("登录失败：$errorMessage")
+                    }
                     if (auto && AngConfigManager.configs.index >= 0) {
                         setLoggedInUi(true)
                         connectionSubText.text = "账号信息暂时刷新失败，可继续使用已保存线路"
                         startButton.isEnabled = true
                     } else {
                         setLoggedInUi(false)
-                        connectionSubText.text = "未能获取专属线路，请确认邮箱是否正确"
+                        connectionSubText.text = if (isAccountNotFoundError(errorMessage)) {
+                            "该邮箱暂未开通套餐，请点击开通按钮购买后再登录"
+                        } else {
+                            "未能获取专属线路，请确认邮箱是否正确"
+                        }
                         startButton.isEnabled = false
                     }
                     setLoginLoading(false)
@@ -834,6 +849,22 @@ class DingdangLoginActivity : AppCompatActivity() {
         toast("已退出登录")
     }
 
+    private fun isAccountNotFoundError(message: String): Boolean {
+        val lower = message.toLowerCase()
+        return lower.contains("not found") ||
+                lower.contains("no account") ||
+                lower.contains("not exist") ||
+                lower.contains("missing account") ||
+                message.contains("不存在") ||
+                message.contains("未找到") ||
+                message.contains("找不到") ||
+                message.contains("查询不到") ||
+                message.contains("未查询到") ||
+                message.contains("未开通") ||
+                message.contains("账号不存在") ||
+                message.contains("邮箱不存在")
+    }
+
     private fun httpGet(url: String): String {
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.connectTimeout = 15000
@@ -1092,7 +1123,10 @@ class DingdangLoginActivity : AppCompatActivity() {
         return lp
     }
 
-    private fun showRenewPlansDialog() {
+    private fun showRenewPlansDialog(
+        titleText: String = "选择网络续费套餐",
+        tipsText: String = "请选择适合你的使用时长，点击套餐卡片后将打开购买页面。"
+    ) {
         hideKeyboard()
         val dialog = android.app.Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -1103,7 +1137,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         wrap.background = rounded(Color.rgb(7, 26, 61), dp(20).toFloat(), border, 1)
 
         val title = TextView(this)
-        title.text = "选择网络续费套餐"
+        title.text = titleText
         title.setTextColor(primaryText)
         title.textSize = 20f
         title.typeface = Typeface.DEFAULT_BOLD
@@ -1111,7 +1145,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         wrap.addView(title, LinearLayout.LayoutParams(-1, -2))
 
         val tips = TextView(this)
-        tips.text = "请选择适合你的使用时长，点击套餐卡片后将打开购买页面。"
+        tips.text = tipsText
         tips.setTextColor(secondText)
         tips.textSize = 13f
         tips.gravity = Gravity.CENTER
