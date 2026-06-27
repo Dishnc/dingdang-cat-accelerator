@@ -76,6 +76,9 @@ class DingdangLoginActivity : AppCompatActivity() {
         private const val PREF_DDCAT_SERVICE = "ddcat_service_url"
         private const val PREF_DDCAT_EMAIL = "ddcat_email"
         private const val PREF_DDCAT_LOGGED_IN = "ddcat_logged_in"
+        private const val PREF_DDCAT_ACCOUNT_BLOCKED = "ddcat_account_blocked"
+        private const val PREF_DDCAT_LAST_STATUS_TEXT = "ddcat_last_status_text"
+        private const val PREF_DDCAT_LAST_EXPIRE = "ddcat_last_expire"
         private const val DEFAULT_SERVICE_BASE = "https://buy.aisuper.top"
         private const val MONTH_PLAN_URL = "https://buy.aisuper.top/buy/1"
         private const val QUARTER_PLAN_URL = "https://buy.aisuper.top/buy/15"
@@ -104,6 +107,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     private lateinit var connectionEffectText: TextView
     private lateinit var smartModeButton: TextView
     private lateinit var globalModeButton: TextView
+    private lateinit var routingBox: LinearLayout
     private lateinit var loginButton: TextView
     private lateinit var refreshButton: TextView
     private lateinit var loginLoadingView: LinearLayout
@@ -123,6 +127,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     private var connectionPulseAnimation: AlphaAnimation? = null
     private var supportFilePathCallback: ValueCallback<Array<Uri>>? = null
     private var useGlobalRouting: Boolean = false
+    private var accountServiceExpired: Boolean = false
 
     private val serviceStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -176,6 +181,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         val savedEmail = defaultDPreference.getPrefString(PREF_DDCAT_EMAIL, "").trim()
         emailInput.setText(savedEmail)
         val hasSavedLogin = defaultDPreference.getPrefBoolean(PREF_DDCAT_LOGGED_IN, false) && savedEmail.isNotBlank()
+        accountServiceExpired = defaultDPreference.getPrefBoolean(PREF_DDCAT_ACCOUNT_BLOCKED, false)
         if (hasSavedLogin) {
             accountEmailValue.text = savedEmail
             setLoggedInUi(true)
@@ -395,42 +401,6 @@ class DingdangLoginActivity : AppCompatActivity() {
         effectLp.bottomMargin = dp(14)
         connCard.addView(connectionEffectText, effectLp)
 
-        val routingBox = LinearLayout(this)
-        routingBox.orientation = LinearLayout.VERTICAL
-        routingBox.setPadding(dp(12), dp(10), dp(12), dp(10))
-        routingBox.background = rounded(Color.argb(88, 12, 50, 96), dp(16).toFloat(), Color.argb(96, 85, 168, 245), 1)
-        val routingBoxLp = LinearLayout.LayoutParams(-1, -2)
-        routingBoxLp.bottomMargin = dp(14)
-        connCard.addView(routingBox, routingBoxLp)
-
-        val routingTitle = TextView(this)
-        routingTitle.text = "加速模式"
-        routingTitle.setTextColor(Color.rgb(204, 229, 255))
-        routingTitle.textSize = 13f
-        routingTitle.typeface = Typeface.DEFAULT_BOLD
-        routingBox.addView(routingTitle, LinearLayout.LayoutParams(-1, -2))
-
-        val routingHint = TextView(this)
-        routingHint.text = "默认智能模式：大陆地址直连，其他地址走加速通道。全局模式需手动选择，本次生效。"
-        routingHint.setTextColor(Color.rgb(150, 180, 212))
-        routingHint.textSize = 11f
-        routingHint.setPadding(0, dp(4), 0, dp(8))
-        routingBox.addView(routingHint, LinearLayout.LayoutParams(-1, -2))
-
-        val routingRow = LinearLayout(this)
-        routingRow.orientation = LinearLayout.HORIZONTAL
-        routingBox.addView(routingRow, LinearLayout.LayoutParams(-1, dp(40)))
-
-        smartModeButton = routingModeButton("智能模式")
-        globalModeButton = routingModeButton("全局模式")
-        smartModeButton.setOnClickListener { selectRoutingMode(false) }
-        globalModeButton.setOnClickListener { selectRoutingMode(true) }
-        routingRow.addView(smartModeButton, LinearLayout.LayoutParams(0, -1, 1f))
-        val globalLp = LinearLayout.LayoutParams(0, -1, 1f)
-        globalLp.leftMargin = dp(8)
-        routingRow.addView(globalModeButton, globalLp)
-        updateRoutingModeButtons()
-
         startButton = primaryButton("🚀  一键加速")
         startButton.textSize = 18f
         startButton.isEnabled = false
@@ -474,6 +444,42 @@ class DingdangLoginActivity : AppCompatActivity() {
         actionsRow.addView(renew, LinearLayout.LayoutParams(0, -1, 1f))
         val p2 = LinearLayout.LayoutParams(0, -1, 1f); p2.leftMargin = dp(8); actionsRow.addView(order, p2)
         val p3 = LinearLayout.LayoutParams(0, -1, 1f); p3.leftMargin = dp(8); actionsRow.addView(trafficPackage, p3)
+
+        routingBox = LinearLayout(this)
+        routingBox.orientation = LinearLayout.VERTICAL
+        routingBox.setPadding(dp(12), dp(10), dp(12), dp(10))
+        routingBox.background = rounded(Color.argb(88, 12, 50, 96), dp(16).toFloat(), Color.argb(96, 85, 168, 245), 1)
+        val routingBoxLp = LinearLayout.LayoutParams(-1, -2)
+        routingBoxLp.bottomMargin = dp(14)
+        box.addView(routingBox, routingBoxLp)
+
+        val routingTitle = TextView(this)
+        routingTitle.text = "加速模式"
+        routingTitle.setTextColor(Color.rgb(204, 229, 255))
+        routingTitle.textSize = 13f
+        routingTitle.typeface = Typeface.DEFAULT_BOLD
+        routingBox.addView(routingTitle, LinearLayout.LayoutParams(-1, -2))
+
+        val routingHint = TextView(this)
+        routingHint.text = "默认智能模式：大陆地址直连，其他地址走加速通道。全局模式需手动选择，本次生效。"
+        routingHint.setTextColor(Color.rgb(150, 180, 212))
+        routingHint.textSize = 11f
+        routingHint.setPadding(0, dp(4), 0, dp(8))
+        routingBox.addView(routingHint, LinearLayout.LayoutParams(-1, -2))
+
+        val routingRow = LinearLayout(this)
+        routingRow.orientation = LinearLayout.HORIZONTAL
+        routingBox.addView(routingRow, LinearLayout.LayoutParams(-1, dp(40)))
+
+        smartModeButton = routingModeButton("智能模式")
+        globalModeButton = routingModeButton("全局模式")
+        smartModeButton.setOnClickListener { selectRoutingMode(false) }
+        globalModeButton.setOnClickListener { selectRoutingMode(true) }
+        routingRow.addView(smartModeButton, LinearLayout.LayoutParams(0, -1, 1f))
+        val globalLp = LinearLayout.LayoutParams(0, -1, 1f)
+        globalLp.leftMargin = dp(8)
+        routingRow.addView(globalModeButton, globalLp)
+        updateRoutingModeButtons()
 
         logoutButton = outlineButton("退出登录 / 更换邮箱")
         logoutButton.setOnClickListener { logoutAccount() }
@@ -566,6 +572,8 @@ class DingdangLoginActivity : AppCompatActivity() {
 
                 val statusTextValue = data.optString("status_text", obj.optString("status_text", "正常使用"))
                 val expire = data.optString("expire_time", obj.optString("expire_time", "--"))
+                defaultDPreference.setPrefString(PREF_DDCAT_LAST_STATUS_TEXT, statusTextValue)
+                defaultDPreference.setPrefString(PREF_DDCAT_LAST_EXPIRE, expire)
                 val used = optDouble(data, obj, "traffic_used_gb")
                 val total = optDouble(data, obj, "traffic_total_gb")
                 val remain = optDouble(data, obj, "traffic_remain_gb")
@@ -732,9 +740,69 @@ class DingdangLoginActivity : AppCompatActivity() {
         }
     }
 
+    private fun isCurrentAccountBlockedForAcceleration(): Boolean {
+        if (accountServiceExpired) return true
+        val statusTextNow = if (::accountStatusValue.isInitialized) accountStatusValue.text.toString() else ""
+        val expireTextNow = if (::accountExpireValue.isInitialized) accountExpireValue.text.toString() else ""
+        return statusTextNow.contains("停用") || statusTextNow.contains("已到期") ||
+                expireTextNow.contains("已到期") || expireTextNow.contains("过期")
+    }
+
+    private fun showExpiredPlanDialog() {
+        try {
+            setDisconnectedState("套餐已到期，无法加速")
+        } catch (ignored: Throwable) {
+        }
+        toast("您当前套餐已到期，续费后重新加速即可使用")
+        val dialog = android.app.Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val wrap = LinearLayout(this)
+        wrap.orientation = LinearLayout.VERTICAL
+        wrap.setPadding(dp(22), dp(20), dp(22), dp(18))
+        wrap.background = rounded(Color.rgb(10, 34, 72), dp(22).toFloat(), Color.argb(150, 255, 96, 96), 1)
+
+        val title = TextView(this)
+        title.text = "套餐已到期"
+        title.setTextColor(Color.rgb(255, 232, 232))
+        title.textSize = 19f
+        title.typeface = Typeface.DEFAULT_BOLD
+        title.gravity = Gravity.CENTER
+        wrap.addView(title, LinearLayout.LayoutParams(-1, -2))
+
+        val msg = TextView(this)
+        msg.text = "您当前套餐已到期无法加速，续费后重新加速即可使用。"
+        msg.setTextColor(Color.rgb(220, 234, 248))
+        msg.textSize = 14f
+        msg.gravity = Gravity.CENTER
+        msg.setPadding(0, dp(12), 0, dp(16))
+        wrap.addView(msg, LinearLayout.LayoutParams(-1, -2))
+
+        val renew = primaryButton("立即续费")
+        renew.setOnClickListener {
+            dialog.dismiss()
+            showRenewPlansDialog()
+        }
+        wrap.addView(renew, LinearLayout.LayoutParams(-1, dp(52)))
+
+        val cancel = outlineButton("稍后再说")
+        cancel.setOnClickListener { dialog.dismiss() }
+        val cancelLp = LinearLayout.LayoutParams(-1, dp(48))
+        cancelLp.topMargin = dp(10)
+        wrap.addView(cancel, cancelLp)
+
+        dialog.setContentView(wrap)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.88f).toInt(), WindowManager.LayoutParams.WRAP_CONTENT)
+        dialog.show()
+    }
+
     private fun startProxy() {
         if (AngConfigManager.configs.index < 0) {
             toast("请先登录并导入线路")
+            return
+        }
+        if (isCurrentAccountBlockedForAcceleration()) {
+            showExpiredPlanDialog()
             return
         }
         val bean = AngConfigManager.configs.vmess.getOrNull(AngConfigManager.configs.index)
@@ -920,6 +988,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         connCard.visibility = if (loggedIn) View.VISIBLE else View.GONE
         accountCard.visibility = if (loggedIn) View.VISIBLE else View.GONE
         actionsRow.visibility = if (loggedIn) View.VISIBLE else View.GONE
+        if (::routingBox.isInitialized) routingBox.visibility = if (loggedIn) View.VISIBLE else View.GONE
         logoutButton.visibility = if (loggedIn) View.VISIBLE else View.GONE
         updateBrandCompact(loggedIn)
         if (!loggedIn) {
@@ -928,6 +997,10 @@ class DingdangLoginActivity : AppCompatActivity() {
     }
 
     private fun resetAccountInfoForLoggedOut() {
+        accountServiceExpired = false
+        defaultDPreference.setPrefBoolean(PREF_DDCAT_ACCOUNT_BLOCKED, false)
+        defaultDPreference.setPrefString(PREF_DDCAT_LAST_STATUS_TEXT, "")
+        defaultDPreference.setPrefString(PREF_DDCAT_LAST_EXPIRE, "")
         accountEmailValue.text = "--"
         setAccountStatusPill("未登录", Color.rgb(150, 168, 190), Color.argb(72, 92, 112, 138), Color.argb(95, 130, 155, 188))
         accountExpireValue.text = "--"
@@ -2003,6 +2076,10 @@ class DingdangLoginActivity : AppCompatActivity() {
     private fun updateAccountStatusAndExpire(rawStatus: String, expire: String) {
         val days = daysUntilExpire(expire)
         val stopped = isStoppedStatus(rawStatus) || (days != null && days < 0)
+        accountServiceExpired = stopped
+        defaultDPreference.setPrefBoolean(PREF_DDCAT_ACCOUNT_BLOCKED, stopped)
+        defaultDPreference.setPrefString(PREF_DDCAT_LAST_STATUS_TEXT, rawStatus)
+        defaultDPreference.setPrefString(PREF_DDCAT_LAST_EXPIRE, expire)
         val expiring = !stopped && days != null && days in 0..6
         when {
             stopped -> {
