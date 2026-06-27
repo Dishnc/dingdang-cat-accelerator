@@ -1322,9 +1322,9 @@ class DingdangLoginActivity : AppCompatActivity() {
         tips.setPadding(0, dp(8), 0, dp(12))
         wrap.addView(tips, LinearLayout.LayoutParams(-1, -2))
 
-        wrap.addView(renewPlanCard(dialog, "月套餐 \uFFE530", "流量 30GB/月", "仅支持单台设备", MONTH_PLAN_URL), planCardLp())
-        wrap.addView(renewPlanCard(dialog, "季度套餐 \uFFE585", "流量 50GB/月 × 3个月", "支持 2 台设备", QUARTER_PLAN_URL), planCardLp())
-        wrap.addView(renewPlanCard(dialog, "年套餐 \uFFE5265", "流量 100GB/月 × 12个月", "支持 3 台设备", YEAR_PLAN_URL), planCardLp())
+        wrap.addView(renewPlanCard(dialog, "月套餐 \uFFE530", "流量 40GB/月", "限绑定单台设备用（手机或电脑）", MONTH_PLAN_URL), planCardLp())
+        wrap.addView(renewPlanCard(dialog, "季度套餐 \uFFE585", "流量 60GB/月 × 3个月", "可绑定2台设备一起用（手机/电脑均可使用）", QUARTER_PLAN_URL), planCardLp())
+        wrap.addView(renewPlanCard(dialog, "年套餐 \uFFE5265", "流量 100GB/月 × 12个月", "可绑定3台设备一起用（手机电脑累计3台可使用）", YEAR_PLAN_URL), planCardLp())
 
         val close = outlineButton("稍后再说")
         close.setOnClickListener { dialog.dismiss() }
