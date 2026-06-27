@@ -33,6 +33,7 @@ import android.view.animation.Animation
 import android.view.animation.LinearInterpolator
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.ValueCallback
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -71,6 +72,7 @@ import java.util.Locale
 class DingdangLoginActivity : AppCompatActivity() {
     companion object {
         private const val REQ_VPN_PREPARE = 1100
+        private const val REQ_SUPPORT_FILE_CHOOSER = 1201
         private const val PREF_DDCAT_SERVICE = "ddcat_service_url"
         private const val PREF_DDCAT_EMAIL = "ddcat_email"
         private const val PREF_DDCAT_LOGGED_IN = "ddcat_logged_in"
@@ -90,9 +92,13 @@ class DingdangLoginActivity : AppCompatActivity() {
     private lateinit var actionsRow: LinearLayout
     private lateinit var logoutButton: TextView
     private lateinit var versionBadge: TextView
+    private lateinit var brandLogo: ImageView
+    private lateinit var brandTitle: TextView
+    private lateinit var brandSub: TextView
     private lateinit var statusText: TextView
     private lateinit var connectionBadge: TextView
     private lateinit var connectionSubText: TextView
+    private lateinit var connectionEffectText: TextView
     private lateinit var loginButton: TextView
     private lateinit var refreshButton: TextView
     private lateinit var loginLoadingView: LinearLayout
@@ -110,6 +116,7 @@ class DingdangLoginActivity : AppCompatActivity() {
     private var serviceReceiverRegistered: Boolean = false
     private var pendingUpdateApk: File? = null
     private var connectionPulseAnimation: AlphaAnimation? = null
+    private var supportFilePathCallback: ValueCallback<Array<Uri>>? = null
 
     private val serviceStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -248,30 +255,30 @@ class DingdangLoginActivity : AppCompatActivity() {
         versionBadge.background = rounded(Color.argb(72, 10, 42, 88), dp(13).toFloat(), Color.argb(90, 86, 165, 245), 1)
         top.addView(versionBadge, LinearLayout.LayoutParams(dp(92), dp(34)))
 
-        val logo = ImageView(this)
-        logo.setImageResource(R.drawable.ddmng_logo)
-        logo.adjustViewBounds = true
-        logo.scaleType = ImageView.ScaleType.FIT_CENTER
-        val logoLp = LinearLayout.LayoutParams(dp(84), dp(84))
+        brandLogo = ImageView(this)
+        brandLogo.setImageResource(R.drawable.ddmng_logo)
+        brandLogo.adjustViewBounds = true
+        brandLogo.scaleType = ImageView.ScaleType.FIT_CENTER
+        val logoLp = LinearLayout.LayoutParams(dp(64), dp(64))
         logoLp.gravity = Gravity.CENTER_HORIZONTAL
         logoLp.topMargin = dp(0)
-        box.addView(logo, logoLp)
+        box.addView(brandLogo, logoLp)
 
-        val heroTitle = TextView(this)
-        heroTitle.text = "DdmNG"
-        heroTitle.setTextColor(accent)
-        heroTitle.textSize = 22f
-        heroTitle.gravity = Gravity.CENTER
-        heroTitle.typeface = Typeface.DEFAULT_BOLD
-        box.addView(heroTitle, LinearLayout.LayoutParams(-1, -2))
+        brandTitle = TextView(this)
+        brandTitle.text = "DdmNG"
+        brandTitle.setTextColor(accent)
+        brandTitle.textSize = 19f
+        brandTitle.gravity = Gravity.CENTER
+        brandTitle.typeface = Typeface.DEFAULT_BOLD
+        box.addView(brandTitle, LinearLayout.LayoutParams(-1, -2))
 
-        val heroSub = TextView(this)
-        heroSub.text = "安全 · 稳定 · 高效"
-        heroSub.setTextColor(Color.rgb(173, 190, 215))
-        heroSub.textSize = 13f
-        heroSub.gravity = Gravity.CENTER
-        heroSub.setPadding(0, dp(1), 0, dp(10))
-        box.addView(heroSub, LinearLayout.LayoutParams(-1, -2))
+        brandSub = TextView(this)
+        brandSub.text = "安全 · 稳定 · 高效"
+        brandSub.setTextColor(Color.rgb(173, 190, 215))
+        brandSub.textSize = 12f
+        brandSub.gravity = Gravity.CENTER
+        brandSub.setPadding(0, dp(0), 0, dp(8))
+        box.addView(brandSub, LinearLayout.LayoutParams(-1, -2))
 
         loginCard = card()
         box.addView(loginCard, cardLp())
@@ -358,13 +365,28 @@ class DingdangLoginActivity : AppCompatActivity() {
         connectionSubText.text = "当前未连接到任何服务"
         connectionSubText.setTextColor(secondText)
         connectionSubText.textSize = 13f
-        connectionSubText.setPadding(0, dp(12), 0, dp(16))
+        connectionSubText.setPadding(0, dp(12), 0, dp(10))
         connCard.addView(connectionSubText, LinearLayout.LayoutParams(-1, -2))
 
+        connectionEffectText = TextView(this)
+        connectionEffectText.text = "待命 · 登录后即可建立安全加速通道"
+        connectionEffectText.setTextColor(Color.rgb(178, 207, 236))
+        connectionEffectText.textSize = 12f
+        connectionEffectText.gravity = Gravity.CENTER
+        connectionEffectText.typeface = Typeface.DEFAULT_BOLD
+        connectionEffectText.setPadding(dp(12), 0, dp(12), 0)
+        connectionEffectText.background = rounded(Color.argb(86, 18, 55, 106), dp(16).toFloat(), Color.argb(92, 90, 168, 245), 1)
+        val effectLp = LinearLayout.LayoutParams(-1, dp(38))
+        effectLp.bottomMargin = dp(14)
+        connCard.addView(connectionEffectText, effectLp)
+
         startButton = primaryButton("🚀  一键加速")
-        startButton.textSize = 20f
+        startButton.textSize = 18f
         startButton.isEnabled = false
-        startButton.setOnClickListener { toggleProxy() }
+        startButton.setOnClickListener {
+            animatePrimaryActionButton(startButton)
+            toggleProxy()
+        }
         startButton.setOnLongClickListener {
             copyDiagnostic()
             true
@@ -642,8 +664,34 @@ class DingdangLoginActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_SUPPORT_FILE_CHOOSER) {
+            val callback = supportFilePathCallback
+            supportFilePathCallback = null
+            if (callback != null) {
+                val results = if (resultCode == RESULT_OK) collectFileChooserUris(data) else null
+                callback.onReceiveValue(results)
+            }
+            return
+        }
         if (requestCode == REQ_VPN_PREPARE && resultCode == RESULT_OK) {
             startOriginalService()
+        }
+    }
+
+    private fun collectFileChooserUris(data: Intent?): Array<Uri>? {
+        return try {
+            val clip = data?.clipData
+            if (clip != null && clip.itemCount > 0) {
+                val list = ArrayList<Uri>()
+                for (i in 0 until clip.itemCount) {
+                    clip.getItemAt(i)?.uri?.let { list.add(it) }
+                }
+                if (list.isEmpty()) null else list.toTypedArray()
+            } else {
+                data?.data?.let { arrayOf(it) }
+            }
+        } catch (ignored: Throwable) {
+            null
         }
     }
 
@@ -651,7 +699,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         val vpnDiag = defaultDPreference.getPrefString("ddcat_vpn_last_setup", "暂无 VPN setup 诊断信息")
         val svcDiag = defaultDPreference.getPrefString("ddcat_service_last_start", "暂无 Service 启动诊断信息")
         val cfg = defaultDPreference.getPrefString(AppConfig.PREF_CURR_CONFIG, "")
-        val all = "=== DdmNG VPN Diagnostic V1.2.1.4 ===\n" +
+        val all = "=== DdmNG VPN Diagnostic V1.2.2.1 ===\n" +
                 "mode=" + defaultDPreference.getPrefString(AppConfig.PREF_MODE, "") + "\n" +
                 "routingMode=" + defaultDPreference.getPrefString(SettingsActivity.PREF_ROUTING_MODE, "") + "\n" +
                 "localDns=" + defaultDPreference.getPrefBoolean(SettingsActivity.PREF_LOCAL_DNS_ENABLED, false) + "\n" +
@@ -744,6 +792,7 @@ class DingdangLoginActivity : AppCompatActivity() {
         accountCard.visibility = if (loggedIn) View.VISIBLE else View.GONE
         actionsRow.visibility = if (loggedIn) View.VISIBLE else View.GONE
         logoutButton.visibility = if (loggedIn) View.VISIBLE else View.GONE
+        updateBrandCompact(loggedIn)
         if (!loggedIn) {
             startButton.isEnabled = false
         }
@@ -807,7 +856,9 @@ class DingdangLoginActivity : AppCompatActivity() {
         connectionBadge.text = "● 已准备"
         connectionBadge.setTextColor(connectedGreen)
         connectionSubText.text = message
+        updateConnectionEffect("已就绪 · 点击下方按钮启动安全加速", Color.rgb(178, 224, 255), Color.argb(98, 22, 77, 133), Color.argb(132, 86, 174, 255))
         startButton.text = "🚀  一键加速"
+        setStartButtonVisual(false)
         startButton.isEnabled = AngConfigManager.configs.index >= 0
     }
 
@@ -817,8 +868,11 @@ class DingdangLoginActivity : AppCompatActivity() {
         connectionBadge.setTextColor(connectedGreen)
         startConnectionPulse()
         connectionSubText.text = message + " 不使用时请点击断开连接，可节省流量。"
+        updateConnectionEffect("✓ 加速已启动 · 安全通道运行中", Color.rgb(210, 255, 232), Color.argb(124, 15, 111, 83), Color.argb(230, 64, 232, 143))
         startButton.text = "🔌  断开连接"
+        setStartButtonVisual(true)
         startButton.isEnabled = true
+        showAccelerationSuccessEffect()
         status("不使用时请点击“断开连接”，可节省流量。")
     }
 
@@ -828,7 +882,9 @@ class DingdangLoginActivity : AppCompatActivity() {
         connectionBadge.text = "● 未连接"
         connectionBadge.setTextColor(disconnectedRed)
         connectionSubText.text = message
+        updateConnectionEffect("未连接 · 点击一键加速后自动建立连接", Color.rgb(255, 196, 196), Color.argb(86, 96, 32, 54), Color.argb(122, 255, 96, 96))
         startButton.text = "🚀  一键加速"
+        setStartButtonVisual(false)
         startButton.isEnabled = AngConfigManager.configs.index >= 0
         status(message + "，需要时可重新点击“一键加速”。")
     }
@@ -839,14 +895,18 @@ class DingdangLoginActivity : AppCompatActivity() {
         connectionBadge.text = "● 失败"
         connectionBadge.setTextColor(disconnectedRed)
         connectionSubText.text = message
+        updateConnectionEffect("启动失败 · 请稍后重试或联系客服", Color.rgb(255, 196, 196), Color.argb(94, 112, 28, 42), Color.argb(150, 255, 96, 96))
         startButton.text = "🚀  一键加速"
+        setStartButtonVisual(false)
         startButton.isEnabled = AngConfigManager.configs.index >= 0
         status(message)
     }
 
     private fun setConnectionCardConnecting() {
         try {
-            connCard.background = rounded(Color.argb(186, 12, 38, 76), dp(20).toFloat(), Color.argb(170, 255, 202, 89), 2)
+            connCard.background = verticalGradient(intArrayOf(Color.argb(214, 18, 44, 83), Color.argb(208, 11, 59, 95)), dp(20).toFloat())
+            connCard.background = rounded(Color.argb(206, 12, 48, 86), dp(20).toFloat(), Color.argb(190, 255, 202, 89), 2)
+            updateConnectionEffect("正在连接 · 正在建立安全隧道…", Color.rgb(255, 235, 181), Color.argb(116, 116, 82, 28), Color.argb(160, 255, 202, 89))
             connectionBadge.clearAnimation()
         } catch (ignored: Throwable) {
         }
@@ -871,6 +931,68 @@ class DingdangLoginActivity : AppCompatActivity() {
             connectionBadge.clearAnimation()
             connectionPulseAnimation = null
             connCard.background = rounded(cardBg, dp(18).toFloat(), border, 1)
+        } catch (ignored: Throwable) {
+        }
+    }
+
+    private fun updateBrandCompact(loggedIn: Boolean) {
+        try {
+            val size = if (loggedIn) dp(54) else dp(64)
+            val lp = brandLogo.layoutParams as? LinearLayout.LayoutParams ?: LinearLayout.LayoutParams(size, size)
+            lp.width = size
+            lp.height = size
+            brandLogo.layoutParams = lp
+            brandTitle.textSize = if (loggedIn) 17f else 19f
+            brandSub.textSize = if (loggedIn) 11f else 12f
+            brandSub.setPadding(0, 0, 0, if (loggedIn) dp(6) else dp(8))
+        } catch (ignored: Throwable) {
+        }
+    }
+
+    private fun updateConnectionEffect(text: String, textColor: Int, bgColor: Int, borderColor: Int) {
+        try {
+            if (!::connectionEffectText.isInitialized) return
+            connectionEffectText.text = text
+            connectionEffectText.setTextColor(textColor)
+            connectionEffectText.background = rounded(bgColor, dp(16).toFloat(), borderColor, 1)
+        } catch (ignored: Throwable) {
+        }
+    }
+
+    private fun setStartButtonVisual(disconnectMode: Boolean) {
+        try {
+            startButton.background = if (disconnectMode) {
+                horizontalGradient(intArrayOf(Color.rgb(24, 202, 124), Color.rgb(35, 226, 170), Color.rgb(40, 170, 255)), dp(18).toFloat())
+            } else {
+                horizontalGradient(intArrayOf(Color.rgb(27, 118, 255), Color.rgb(34, 218, 246)), dp(18).toFloat())
+            }
+        } catch (ignored: Throwable) {
+        }
+    }
+
+    private fun animatePrimaryActionButton(view: View) {
+        try {
+            view.animate().cancel()
+            view.animate().scaleX(0.96f).scaleY(0.96f).alpha(0.86f).setDuration(90).withEndAction {
+                view.animate().scaleX(1.0f).scaleY(1.0f).alpha(1.0f).setDuration(160).start()
+            }.start()
+        } catch (ignored: Throwable) {
+        }
+    }
+
+    private fun showAccelerationSuccessEffect() {
+        try {
+            connCard.animate().cancel()
+            connCard.animate().scaleX(1.018f).scaleY(1.018f).setDuration(180).withEndAction {
+                connCard.animate().scaleX(1.0f).scaleY(1.0f).setDuration(260).start()
+            }.start()
+            if (::connectionEffectText.isInitialized) {
+                connectionEffectText.animate().cancel()
+                connectionEffectText.alpha = 1.0f
+                connectionEffectText.animate().alpha(0.58f).setDuration(220).withEndAction {
+                    connectionEffectText.animate().alpha(1.0f).setDuration(420).start()
+                }.start()
+            }
         } catch (ignored: Throwable) {
         }
     }
@@ -1158,6 +1280,30 @@ class DingdangLoginActivity : AppCompatActivity() {
                     progress.visibility = if (newProgress >= 95) View.GONE else View.VISIBLE
                 }
 
+                override fun onShowFileChooser(view: WebView?, filePathCallback: ValueCallback<Array<Uri>>?, fileChooserParams: WebChromeClient.FileChooserParams?): Boolean {
+                    supportFilePathCallback?.onReceiveValue(null)
+                    supportFilePathCallback = filePathCallback
+                    return try {
+                        val chooserIntent = try {
+                            fileChooserParams?.createIntent()
+                        } catch (ignored: Throwable) {
+                            null
+                        } ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                        }
+                        chooserIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        startActivityForResult(Intent.createChooser(chooserIntent, "选择要上传的图片或文件"), REQ_SUPPORT_FILE_CHOOSER)
+                        true
+                    } catch (e: Throwable) {
+                        supportFilePathCallback?.onReceiveValue(null)
+                        supportFilePathCallback = null
+                        toast("无法打开文件选择器")
+                        true
+                    }
+                }
+
                 override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
                     // 客服智能回复按钮可能使用 target=_blank / window.open 打开购买页或帮助页。
                     // 不能把已经显示中的 webView 直接塞给 WebViewTransport，否则部分 Android WebView 会崩溃。
@@ -1211,6 +1357,10 @@ class DingdangLoginActivity : AppCompatActivity() {
             wrap.addView(webView, LinearLayout.LayoutParams(-1, 0, 1f))
             close.setOnClickListener { dialog.dismiss() }
             dialog.setOnDismissListener {
+                try {
+                    supportFilePathCallback?.onReceiveValue(null)
+                    supportFilePathCallback = null
+                } catch (ignored: Throwable) {}
                 try {
                     webView.stopLoading()
                     webView.loadUrl("about:blank")
